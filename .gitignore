@@ -1,11 +1,14 @@
+# Ignore environment variables
 .env
-./.env
-/.env
-
+# Ignore SQLite database
 db.sqlite3
-./db.sqlite3
-/.db.sqlite3
-
+# Ignore virtual environment
 .venv
-/.venv
-./.venv
+
+# Ignore psycache files from any folder
+*.pyc
+__pycache__/
+*.pyo
+*.pyd
+
+# Add any other files or folders you want to ignore

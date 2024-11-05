@@ -1,5 +1,7 @@
 from django.urls import path
+from . import views
 
-urlpatters = [
-    # path("upload/")
+urlpatterns = [
+    path("get-videos/", views.get_all_videos,name='getallvideos'),
+    path('upload/',views.upload_video,name='uploadvideo')
 ]
