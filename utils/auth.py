@@ -2,10 +2,14 @@ from functools import wraps
 from django.http import JsonResponse
 import jwt
 from utils.jwt import verify_token
+from django.contrib.auth import get_user_model
+from django.contrib.auth.models import User
+User = get_user_model()
+from asgiref.sync import sync_to_async
 
 def verify_jwt(view_func):
     @wraps(view_func)
-    def _wrapped_view(request, *args, **kwargs):
+    async def _wrapped_view(request, *args, **kwargs):
         token = request.COOKIES.get('token')  # Retrieve the JWT from cookies
         if token:
             try:
@@ -13,7 +17,12 @@ def verify_jwt(view_func):
                 user_id = payload.get('user_id')
 
                 if user_id:
-                    request.user_id = user_id  # Set the user_id on the request
+                    user = await sync_to_async(User.objects.filter(id=user_id).first)()
+                    if user:
+                        request.user = user
+                    else:
+                        request.user = None
+                
                 else:
                     return JsonResponse({'success': False, 'message': 'Invalid token payload'}, status=401)
 
@@ -22,9 +31,7 @@ def verify_jwt(view_func):
             except jwt.InvalidTokenError:
                 return JsonResponse({'success': False, 'message': 'Invalid token'}, status=401)
         else:
-            return JsonResponse({'success': False, 'message': 'Token not provided'}, status=401)
-
-        # Call the original view function
-        return view_func(request, *args, **kwargs)
+            request.user = None
+        return await view_func(request, *args, **kwargs)
 
     return _wrapped_view

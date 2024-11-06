@@ -18,7 +18,7 @@ async def upload_image(image):
     upload_result = await sync_to_async(cloudinary.uploader.upload)(image)
     return upload_result
 
-async def upload_video(video):
+async def upload_video_to_cloudinary(video):
     upload_result = await sync_to_async(cloudinary.uploader.upload)(video,resource_type="video")
     return upload_result
 

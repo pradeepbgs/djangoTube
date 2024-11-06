@@ -12,3 +12,4 @@ __pycache__/
 *.pyd
 
 # Add any other files or folders you want to ignore
+migrations/
