@@ -3,12 +3,11 @@ from .models import VideoModel
 from django.http import JsonResponse
 from django.db.models import Q
 from rest_framework import status
-from utils.cloudinary import upload_image, upload_video_to_cloudinary
+from utils.cloudinary import upload_image, upload_video_to_cloudinary,delete_file_from_cloudinary
 from django.views.decorators.csrf import csrf_exempt
 from utils.auth import verify_jwt
 import traceback
-from django.shortcuts import get_object_or_404
-from .crud import fetch_user_by_userId,fetch_user_videos,get_paginated_videos, get_videos,save_video,fetch_video_details , get_video_comments,get_paginated_comments
+from .crud import fetch_user_by_userId,fetch_user_videos,get_paginated_videos, get_videos,save_video,fetch_video_details , get_video_comments,get_paginated_comments, fetchVideoByUserAndVideoId,getVideoByVideoId
 
 # Create your views here.
 
@@ -205,7 +204,7 @@ async def get_video_details(request, videoId):
 
     user = request.user  # User is None if not authenticated, based on verify_jwt decorator
     try:
-        video = await sync_to_async(get_object_or_404)(VideoModel, pk=videoId)
+        video = await getVideoByVideoId(videoId)
 
         video_details = await fetch_video_details(video, user)
         
@@ -239,3 +238,71 @@ async def get_video_details(request, videoId):
     
     except VideoModel.DoesNotExist:
         return JsonResponse({'error': 'Video not found'}, status=404)
+
+@csrf_exempt
+@verify_jwt
+async def update_video_details(request,videoId):
+    if request.method != 'PUT':
+        return JsonResponse({
+      'success':False,
+      'message':'Only PUT Method is allowed'
+        },status=status.HTTP_405_METHOD_NOT_ALLOWED)
+    
+    if not request.user:
+        return JsonResponse({
+      'success':False,
+      'message':'Unauthorized'
+        })
+    
+    if not videoId:
+        return JsonResponse({
+      'success':False,
+      'message':'Pls Provide VideoId'
+        },status=status.HTTP_400_BAD_REQUEST)
+  
+    data = request.POST
+    files = request.FILES
+
+    title = data.get('title',None)
+    description = data.get('description',None)
+    thumbnail = files.get('thumbnail',None)
+
+    video = await fetchVideoByUserAndVideoId(videoId,request.user)
+
+    if not video:
+        return JsonResponse({
+            'success':False,
+            'message':'Video not found or unauthorized access'
+        },status=status.HTTP_404_NOT_FOUND)
+    
+    try:
+        if title:
+            video.title = title
+        
+        if description:
+            video.description = description
+        
+        oldThumbnail = video.thumbnail
+
+        if thumbnail:
+            uploaded_thumbnail = await upload_image(thumbnail)
+            uploaded_thumbnail_url = uploaded_thumbnail.get('secure_url')
+
+            video.thumbnail = uploaded_thumbnail_url
+
+            if oldThumbnail:
+                await delete_file_from_cloudinary(oldThumbnail)
+        
+        await sync_to_async(video.save)()
+
+        return JsonResponse({
+            "success": True,
+            "message": "Video details updated successfully"
+        }, status=status.HTTP_200_OK)
+    except Exception as e:
+        print(traceback.format_exc())
+        return JsonResponse({
+            "success": False,
+            "message": "Something went wrong while updating video details",
+            "error": str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

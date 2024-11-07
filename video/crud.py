@@ -11,8 +11,22 @@ User = get_user_model()
 @sync_to_async
 def fetch_user_by_userId(userId):
     try:
-        return get_object_or_404(User,id=userId)
+        return User.objects.get(id=userId)
     except:
+        return None
+
+@sync_to_async
+def fetchVideoByUserAndVideoId(videoId,user):
+    try:
+        return VideoModel.objects.get(id=videoId,owner=user)
+    except VideoModel.DoesNotExist:
+        return None
+    
+@sync_to_async
+def getVideoByVideoId(videoId):
+    try:
+        return VideoModel.objects.get(id=videoId)
+    except VideoModel.DoesNotExist:
         return None
 
 @sync_to_async
