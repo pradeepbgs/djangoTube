@@ -1,17 +1,14 @@
 from asgiref.sync import sync_to_async
 from .models import VideoModel
-from comment.models import CommentModel
 from django.http import JsonResponse
-from django.db.models import Q,Count,BooleanField,Case,When,Value,F
-from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+from django.db.models import Q
 from rest_framework import status
-from django.contrib.auth.models import User
 from utils.cloudinary import upload_image, upload_video_to_cloudinary
 from django.views.decorators.csrf import csrf_exempt
 from utils.auth import verify_jwt
 import traceback
 from django.shortcuts import get_object_or_404
-
+from .crud import fetch_user_by_userId,fetch_user_videos,get_paginated_videos, get_videos,save_video,fetch_video_details , get_video_comments,get_paginated_comments
 
 # Create your views here.
 
@@ -19,7 +16,7 @@ from django.shortcuts import get_object_or_404
 # get all video with search/filter 
 async def get_all_videos(request):
     if request.method == 'GET':
-        page = request.GET.get('page',1)
+        page = int(request.GET.get('page',1))
         limit = int(request.GET.get('limit', 10))
         query = request.GET.get('query', None)
         sort_by = request.GET.get('sortBy', 'created_at')
@@ -39,36 +36,22 @@ async def get_all_videos(request):
 
             order_prefix = '-' if sort_type == 'desc' else ''
             order_by = f"{order_prefix}{sort_by}"
-
-            @sync_to_async
-            def  get_videos():
-                return list(VideoModel.objects.filter(filters).order_by(order_by))
             
-            @sync_to_async
-            def get_pagination_data(videos):
-                paginator = Paginator(videos,limit)
-                try:
-                    paginated_videos = paginator.get_page(page)
-                except (EmptyPage, PageNotAnInteger):
-                    paginated_videos = paginator.page(1)
-                return {
-                    'page_obj':paginated_videos,
-                    'total': paginator.count,
-                    'total_pages': paginator.num_pages
-                }
-            
-            videos = await get_videos()
-            pagination_data = await get_pagination_data(videos)
-            page_obj = pagination_data['page_obj']
+            videos = await get_videos(filters,order_by)
+            page_obj = await get_paginated_videos(videos,limit,page)
+            pagination_data = page_obj['pagination_data']
 
+            if not pagination_data:
+                return JsonResponse({'success':False,'message':'could not find any video'},status=404)
+            
             # serialize data 
             data = []
-            for video in page_obj:
+            for video in pagination_data:
                 owner_data = await sync_to_async(lambda: {
-                    "id": video.owner.id,
-                    "fullname": video.owner.fullname,
-                    "username": video.owner.username,
-                    "avatar": video.owner.avatar if video.owner.avatar else None,
+                    "id": video.owner.id if video.owner else None,
+                    "fullname": video.owner.fullname if video.owner else None,
+                    "username": video.owner.username if video.owner else None,
+                    # "avatar": video.owner.avatar if video.owner else None,
                 })()
                 data.append({
                 "id": video.id,
@@ -77,20 +60,18 @@ async def get_all_videos(request):
                 "url": video.video_file,
                 "views": video.views,
                 "duration": video.duration,
-                # "is_published": video.isPublished,
                 "created_at": video.created_at,
-                # "updated_at": video.updated_at,
                 "owner": owner_data
                 })
-
+            
             return JsonResponse({
                     "success": True,
                     "message": "Videos fetched successfully.",
                     "data": data,
-                    "total": pagination_data['total'],
+                    "total": page_obj['total'],
                     "page": int(page),
                     "limit": limit,
-                    "total_pages": pagination_data['total_pages']
+                    "total_pages": page_obj['total_pages']
                 })
         except Exception as e:
             print(traceback.format_exc())  # Print the full error traceback for debugging
@@ -104,54 +85,54 @@ async def get_all_videos(request):
     
 
 # get user videos by pagination
+async def get_user_videos(request,userId):
+    if request.method != 'GET':
+        return JsonResponse({'success': False, 'message': 'Method not allowed'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
-async def get_user_videos(req,userId):
-    page = req.GET.get('page',1)
-    limit = req.GET.get('limit',10)
-
-    user = await sync_to_async(User.objects.filter(id=userId))()
+    page = request.GET.get('page',1)
+    limit = request.GET.get('limit',10)
+    if not userId:
+        return JsonResponse({'success': False, 'message': 'please give user id'}, status=400)
     
     try:
-        videos = VideoModel.objects.filter(owner=user).order_by('created-at')
+        user = await fetch_user_by_userId(userId)
+        if not user:
+            return JsonResponse({'success': False, 'message': 'could not find the user'}, status=404)
+        
+        videos = await fetch_user_videos(user)
 
-        paginator = Paginator(videos,limit)
-        try:
-            paginated_videos = paginator.get_page(page)
-        except (EmptyPage, PageNotAnInteger):
-            paginated_videos = paginator.page(1)
+        page_obj = await get_paginated_videos(videos,limit,page)
+        paginated_videos = page_obj['pagination_data']
         
         # serialize the data 
-        data = [
-            {
+        data = []
+        for video in paginated_videos:
+            data.append({
                 "id": video.id,
                 "title": video.title,
                 "description": video.description,
-                "videoFile": video.videoFile.url if video.videoFile else None,
-                "thumbnail": video.thumbnail.url if video.thumbnail else None,
+                "url": video.video_file if video.video_file else None,
+                "thumbnail": video.thumbnail if video.thumbnail else None,
                 "duration": video.duration,
                 "views": video.views,
                 "createdAt": video.created_at,
-                # will do in future after defining good user model
-                # "owner": {
-                #     "id": user.id,
-                #     "username": user.username,
-                #     "fullname": user.fullname,
-                #     "avatar": user.profile.avatar.url if user.profile.avatar else None,
-                #     "coverImage": user.profile.cover_image.url if user.profile.cover_image else None,
-                # },
-            } for video in paginated_videos
-        ]
+                'owner':{
+                    'id':user.id,
+                    'username':user.username,
+                }
+            })
 
         return JsonResponse({
             "success": True,
             "data": data,
             "page": page,
             "limit": limit,
-            "total_pages": paginator.num_pages,
+            "total_pages": page_obj['total_pages'],
             "message": "Videos fetched successfully."
         }, status=status.HTTP_200_OK)
 
-    except:
+    except Exception as e:
+        print(traceback.format_exc())
         return JsonResponse({
                 "success": False,
                 "message": "Something went wrong.",
@@ -162,6 +143,12 @@ async def get_user_videos(req,userId):
 async def upload_video(request):
     if request.method != 'POST':
         return JsonResponse({'success': False, 'message': 'Method not allowed'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+    if not request.user:
+        return JsonResponse({
+            "success":False,
+            'message':'unauthorized user'
+        },status=status.HTTP_401_UNAUTHORIZED)
+    
     data = request.POST
     files = request.FILES
 
@@ -192,16 +179,21 @@ async def upload_video(request):
             "error": str(e)
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    await sync_to_async(VideoModel.objects.create)(
+    video = await save_video(
         title=title,
         description=description,
         thumbnail=thumbnail_secure_url,
         video_file=video_secure_url,
         duration=duration,
-        owner=request.user 
+        owner=request.user
     )
 
-    return JsonResponse({'success': True, 'message': 'Video uploaded successfully'}, status=status.HTTP_201_CREATED)
+    return JsonResponse({
+        'success': True, 
+        'message': 'Video uploaded successfully',
+        'video_id': video.id,
+        }, 
+        status=status.HTTP_201_CREATED)
 
 
 
@@ -212,61 +204,20 @@ async def get_video_details(request, videoId):
         return JsonResponse({'success': False, 'message': 'Method not allowed'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
     user = request.user  # User is None if not authenticated, based on verify_jwt decorator
-
     try:
-        # Fetch video instance asynchronously
         video = await sync_to_async(get_object_or_404)(VideoModel, pk=videoId)
-
-        # Fetch video details with annotations for likes and subscriptions
-        @sync_to_async
-        def fetch_video_details(video, user):
-            return VideoModel.objects.filter(id=video.id).annotate(
-                like_count=Count('likes', filter=Q(likes__video=video)),
-                subscribers_count=Count('owner__subscribers', filter=Q(owner__subscribers__channel=F('owner'))),
-                is_liked=Case(
-                    When(likes__liked_by=user, then=Value(True)),
-                    default=Value(False),
-                    output_field=BooleanField(),
-                ) if user else Value(False, output_field=BooleanField()),
-                is_subscribed=Case(
-                    When(owner__subscriptions__subscriber=user, then=Value(True)),
-                    default=Value(False),
-                    output_field=BooleanField(),
-                ) if user else Value(False, output_field=BooleanField())
-            ).values(
-                'id', 'title', 'description', 'thumbnail', 'video_file', 'views', 'isPublished', 'duration',
-                'created_at', 'updated_at',
-                'owner',
-                'owner__id', 'owner__fullname', 'owner__username', 'owner__avatar',
-                'like_count', 'subscribers_count', 'is_liked', 'is_subscribed'
-            ).first()
 
         video_details = await fetch_video_details(video, user)
         
         if not video_details:
             return JsonResponse({'message': 'Video not found'}, status=404)
         
-        # Fetch and paginate comments
         page = request.GET.get('page', 1)
         limit = request.GET.get('limit', 10)
 
-        @sync_to_async
-        def get_video_comments():
-            return CommentModel.objects.filter(video=video).order_by('created_at')
-
-        @sync_to_async
-        def get_paginated_comments(comments, limit, page):
-            paginator = Paginator(comments, limit)
-            try:
-                paginated_comments = paginator.page(page)
-            except (EmptyPage, PageNotAnInteger):
-                paginated_comments = paginator.page(1)
-            return paginated_comments
-
-        comments = await get_video_comments()
+        comments = await get_video_comments(video)
         paginated_comments = await get_paginated_comments(comments, limit, page)
 
-        # Prepare comment data
         comment_data = [
             {
                 'id': comment.id,

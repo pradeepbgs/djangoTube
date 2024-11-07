@@ -14,7 +14,8 @@ def verify_jwt(view_func):
         if token:
             try:
                 payload = verify_token(token)  # Your custom verify_token function
-                user_id = payload.get('user_id')
+                if payload:
+                    user_id = payload.get('user_id')
 
                 if user_id:
                     user = await sync_to_async(User.objects.filter(id=user_id).first)()
