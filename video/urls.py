@@ -6,4 +6,7 @@ urlpatterns = [
     path('upload/',views.upload_video,name='uploadvideo'),
     path('get-video-details/<int:videoId>/', views.get_video_details, name='getvideodetails'),
     path('get-user-videos/<int:userId>/',views.get_user_videos,name='get user videos'),
+    path('delete-video/<int:videoId>/',views.delete_video,name='delete'),
+    path('update-video-details/<int:videoId>/',views.update_video_details, name='change video details'),
+    path('toggle/<int:videoId>/',views.toggle_publish_status,name='toggle')
 ]

@@ -1,6 +1,7 @@
 import jwt
 import os
 from datetime import datetime, timedelta
+from asgiref.sync import sync_to_async
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -8,6 +9,7 @@ JWT_SECRET = os.getenv('JWT_SECRET')
 JWT_ALGORITHM = 'HS256'
 JWT_EXP_DELTA_SECONDS = 86400
 
+@sync_to_async
 def generate_token(data):
     payload = {
         'user_id': data.id,
@@ -19,6 +21,7 @@ def generate_token(data):
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
+@sync_to_async
 def verify_token(token):
     try:
         payload = jwt.decode(token,JWT_SECRET, algorithms=[JWT_ALGORITHM])

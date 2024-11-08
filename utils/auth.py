@@ -10,10 +10,10 @@ from asgiref.sync import sync_to_async
 def verify_jwt(view_func):
     @wraps(view_func)
     async def _wrapped_view(request, *args, **kwargs):
-        token = request.COOKIES.get('token')  # Retrieve the JWT from cookies
+        token = request.COOKIES.get('token')
         if token:
             try:
-                payload = verify_token(token)  # Your custom verify_token function
+                payload = await verify_token(token)  
                 if payload:
                     user_id = payload.get('user_id')
 

@@ -7,8 +7,9 @@ from asgiref.sync import sync_to_async
 from django.contrib.auth import get_user_model
 from utils.cloudinary import upload_image
 from utils.jwt import generate_token
+import traceback
+from .repository import UserRepository
 User = get_user_model()
-
 # Create your views here.
 @csrf_exempt
 async def register_user(request):
@@ -30,21 +31,16 @@ async def register_user(request):
             if len(password) < 5:
                 return JsonResponse({'success': False, 'error': 'Password must be at least 5 characters long'}, status=status.HTTP_400_BAD_REQUEST)
 
-            username_exists = await sync_to_async(User.objects.filter(username=username).exists)()
+            username_exists = await UserRepository.getUserByUserName(username)
             if username_exists:
                 return JsonResponse({'success': False, 'error': 'Username already exists, try a unique username'}, status=status.HTTP_400_BAD_REQUEST)
 
         
-            email_exists = await sync_to_async(User.objects.filter(email=email).exists)()
+            email_exists = await UserRepository.getEmailByEmail(email)
             if email_exists:
                 return JsonResponse({'success': False, 'error': 'Email already exists!'}, status=status.HTTP_400_BAD_REQUEST)
 
-            user = await sync_to_async(User.objects.create_user)(
-                    username=username,
-                    email=email,
-                    password=password,
-                    fullname=fullname,
-            )
+            user = await UserRepository.createUser(username,email,password,fullname)
             avatar_url = None
             if avatar:
                 res = await upload_image(avatar)
@@ -57,10 +53,11 @@ async def register_user(request):
             
             user.avatat = avatar_url
             user.coverImage = coverImage_url
-            await sync_to_async(user.save)()
+            await UserRepository.saveUser(user)
             if user:
                 return JsonResponse({'success': True, 'message': 'User registered successfully'}, status=status.HTTP_201_CREATED)
         except Exception as e:
+            print(traceback.format_exc())
             return JsonResponse({'success': False, 'error': 'Something went wrong : {}'.format(str(e))}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     else:
         return JsonResponse({'success':False,'message':'Method not allowd'},status=status.HTTP_405_METHOD_NOT_ALLOWED)
@@ -83,7 +80,7 @@ async def login_user(request):
         user = await sync_to_async(authenticate)(username=username,password=password)
 
         if user is not  None:
-            token = await sync_to_async(generate_token)(user)
+            token = await generate_token(user)
             response = JsonResponse({'success': True, 'message': 'Login successful'})
             response.set_cookie(
                 key='token', 
