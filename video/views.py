@@ -7,10 +7,9 @@ from utils.cloudinary import upload_image, upload_video_to_cloudinary,delete_fil
 from django.views.decorators.csrf import csrf_exempt
 from utils.auth import verify_jwt
 import traceback
-from .crud import fetch_user_by_userId,fetch_user_videos,get_paginated_videos, get_videos,save_video,fetch_video_details , get_video_comments,get_paginated_comments, fetchVideoByUserAndVideoId,getVideoByVideoId
+from .repository import VideoRepository
 
 # Create your views here.
-
 
 # get all video with search/filter 
 async def get_all_videos(request):
@@ -36,8 +35,8 @@ async def get_all_videos(request):
             order_prefix = '-' if sort_type == 'desc' else ''
             order_by = f"{order_prefix}{sort_by}"
             
-            videos = await get_videos(filters,order_by)
-            page_obj = await get_paginated_videos(videos,limit,page)
+            videos = await VideoRepository.get_videos(filters,order_by)
+            page_obj = await VideoRepository.get_paginated_videos(videos,limit,page)
             pagination_data = page_obj['pagination_data']
 
             if not pagination_data:
@@ -73,7 +72,7 @@ async def get_all_videos(request):
                     "total_pages": page_obj['total_pages']
                 })
         except Exception as e:
-            print(traceback.format_exc())  # Print the full error traceback for debugging
+            print(traceback.format_exc())  
             return JsonResponse({
                     "success": False,
                     "message": "Something went wrong.",
@@ -94,13 +93,13 @@ async def get_user_videos(request,userId):
         return JsonResponse({'success': False, 'message': 'please give user id'}, status=400)
     
     try:
-        user = await fetch_user_by_userId(userId)
+        user = await VideoRepository.fetch_user_by_userId(userId)
         if not user:
             return JsonResponse({'success': False, 'message': 'could not find the user'}, status=404)
         
-        videos = await fetch_user_videos(user)
+        videos = await VideoRepository.fetch_user_videos(user)
 
-        page_obj = await get_paginated_videos(videos,limit,page)
+        page_obj = await VideoRepository.get_paginated_videos(videos,limit,page)
         paginated_videos = page_obj['pagination_data']
         
         # serialize the data 
@@ -137,6 +136,8 @@ async def get_user_videos(request,userId):
                 "message": "Something went wrong.",
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
+
+# upload videos
 @csrf_exempt
 @verify_jwt
 async def upload_video(request):
@@ -178,7 +179,7 @@ async def upload_video(request):
             "error": str(e)
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    video = await save_video(
+    video = await VideoRepository.save_video(
         title=title,
         description=description,
         thumbnail=thumbnail_secure_url,
@@ -194,19 +195,18 @@ async def upload_video(request):
         }, 
         status=status.HTTP_201_CREATED)
 
-
-
+# needs to work on get video details as we dont need to get comment here , we will build another api
 @csrf_exempt
 @verify_jwt
 async def get_video_details(request, videoId):
     if request.method != 'GET':
         return JsonResponse({'success': False, 'message': 'Method not allowed'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
-    user = request.user  # User is None if not authenticated, based on verify_jwt decorator
+    user = request.user 
     try:
-        video = await getVideoByVideoId(videoId)
+        video = await VideoRepository.getVideoByVideoId(videoId)
 
-        video_details = await fetch_video_details(video, user)
+        video_details = await VideoRepository.video_details(video, user)
         
         if not video_details:
             return JsonResponse({'message': 'Video not found'}, status=404)
@@ -214,8 +214,8 @@ async def get_video_details(request, videoId):
         page = request.GET.get('page', 1)
         limit = request.GET.get('limit', 10)
 
-        comments = await get_video_comments(video)
-        paginated_comments = await get_paginated_comments(comments, limit, page)
+        comments = await VideoRepository.get_video_comments(video)
+        paginated_comments = await VideoRepository.get_paginated_comments(comments, limit, page)
 
         comment_data = [
             {
@@ -242,12 +242,12 @@ async def get_video_details(request, videoId):
 @csrf_exempt
 @verify_jwt
 async def update_video_details(request,videoId):
-    if request.method != 'PUT':
+    if request.method != 'POST':
         return JsonResponse({
       'success':False,
-      'message':'Only PUT Method is allowed'
+      'message':'Method not allowed'
         },status=status.HTTP_405_METHOD_NOT_ALLOWED)
-    
+
     if not request.user:
         return JsonResponse({
       'success':False,
@@ -259,15 +259,12 @@ async def update_video_details(request,videoId):
       'success':False,
       'message':'Pls Provide VideoId'
         },status=status.HTTP_400_BAD_REQUEST)
-  
-    data = request.POST
-    files = request.FILES
+    
+    title = request.POST.get('title')
+    description = request.POST.get('description')
+    thumbnail = request.FILES.get('thumbnail')
 
-    title = data.get('title',None)
-    description = data.get('description',None)
-    thumbnail = files.get('thumbnail',None)
-
-    video = await fetchVideoByUserAndVideoId(videoId,request.user)
+    video = await VideoRepository.fetchVideoByUserAndVideoId(videoId,request.user)
 
     if not video:
         return JsonResponse({
@@ -293,6 +290,12 @@ async def update_video_details(request,videoId):
             if oldThumbnail:
                 await delete_file_from_cloudinary(oldThumbnail)
         
+        if not title and not description and not thumbnail:
+            return JsonResponse({
+                'success':False,
+                'message':"video didnt updated as you didnt give anything to change"
+            },status=400)
+        
         await sync_to_async(video.save)()
 
         return JsonResponse({
@@ -305,4 +308,91 @@ async def update_video_details(request,videoId):
             "success": False,
             "message": "Something went wrong while updating video details",
             "error": str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+@csrf_exempt
+@verify_jwt
+async def delete_video(request, videoId):
+    if request.method != 'DELETE':
+         return JsonResponse({
+            'success': False,
+            'message': 'Only DELETE method is allowed'
+        }, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+    try:
+        
+        if not videoId:
+            return JsonResponse({
+                'success': False,
+                'message': 'Please provide a video ID'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        if not request.user:
+            return JsonResponse({
+                'success': False,
+                'message': 'Unauthorized'
+            }, status=status.HTTP_401_UNAUTHORIZED)
+        
+        video = await VideoRepository.fetchVideoByUserAndVideoId(videoId, request.user)
+        if not video:
+            return JsonResponse({
+                'success': False,
+                'message': 'Video not found or unauthorized access'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        videoDeletedResult = await VideoRepository.deleteVideoByVideo(video)
+        if videoDeletedResult:
+            return JsonResponse({
+            'success': True,
+            'message': 'Video deleted successfully'
+            }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': 'An error occurred during video deletion',
+            'error': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@csrf_exempt
+@verify_jwt
+async def toggle_publish_status(request, videoId):
+    try:
+        if request.method != 'PATCH':
+            return JsonResponse({
+                'success': False,
+                'message': 'Method not allowed'
+            }, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
+        if not videoId:
+            return JsonResponse({
+                'success': False,
+                'message': 'Please provide a video ID'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if not request.user:
+            return JsonResponse({
+                'success': False,
+                'message': 'Unauthorized'
+            }, status=status.HTTP_401_UNAUTHORIZED)
+
+        video = await VideoRepository.fetchVideoByUserAndVideoId(videoId, request.user)
+        if not video:
+            return JsonResponse({
+                'success': False,
+                'message': 'Video not found or unauthorized access'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        video.isPublished = True
+        await sync_to_async(video.save)()
+
+        return JsonResponse({
+            'success': True,
+            'message': 'Video publish status toggled successfully'
+        })
+
+    except Exception as e:
+        print(traceback.format_exc())
+        return JsonResponse({
+            'success': False,
+            'message': f'An error occurred: {str(e)}'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
