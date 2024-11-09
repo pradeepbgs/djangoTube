@@ -7,3 +7,9 @@ class SubscriptionModel(models.Model):
     channel = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='subscribers')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('subscriber', 'channel')
+        indexes = [
+        models.Index(fields=['created_at']),
+        ]
