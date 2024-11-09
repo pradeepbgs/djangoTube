@@ -16,6 +16,7 @@ async def get_all_videos(request):
     if request.method == 'GET':
         page = int(request.GET.get('page',1))
         limit = int(request.GET.get('limit', 10))
+        offset = (page - 1) * limit
         query = request.GET.get('query', None)
         sort_by = request.GET.get('sortBy', 'created_at')
         sort_type = request.GET.get('sortType', 'desc')
@@ -35,16 +36,16 @@ async def get_all_videos(request):
             order_prefix = '-' if sort_type == 'desc' else ''
             order_by = f"{order_prefix}{sort_by}"
             
-            videos = await VideoRepository.get_videos(filters,order_by)
-            page_obj = await VideoRepository.get_paginated_videos(videos,limit,page)
-            pagination_data = page_obj['pagination_data']
+            videos = await VideoRepository.get_paginated_videos(filters, order_by, offset, limit)
 
-            if not pagination_data:
-                return JsonResponse({'success':False,'message':'could not find any video'},status=404)
+            if not videos:
+                return JsonResponse({'success': False, 'message': 'No videos found'}, status=404)
             
+            total_count = await VideoRepository.getVideosTotalCound(filters)
+            total_pages = (total_count + limit - 1) // limit
             # serialize data 
             data = []
-            for video in pagination_data:
+            for video in videos:
                 owner_data = await sync_to_async(lambda: {
                     "id": video.owner.id if video.owner else None,
                     "fullname": video.owner.fullname if video.owner else None,
@@ -66,11 +67,12 @@ async def get_all_videos(request):
                     "success": True,
                     "message": "Videos fetched successfully.",
                     "data": data,
-                    "total": page_obj['total'],
+                    "total": total_count,
                     "page": int(page),
                     "limit": limit,
-                    "total_pages": page_obj['total_pages']
-                })
+                    "total_pages": total_pages
+                },status=200)
+        
         except Exception as e:
             print(traceback.format_exc())  
             return JsonResponse({
@@ -89,6 +91,8 @@ async def get_user_videos(request,userId):
 
     page = request.GET.get('page',1)
     limit = request.GET.get('limit',10)
+    offset = (page-1) * limit
+    
     if not userId:
         return JsonResponse({'success': False, 'message': 'please give user id'}, status=400)
     

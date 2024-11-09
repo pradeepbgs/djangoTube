@@ -12,6 +12,11 @@ class CommentRepository:
             print(traceback.format_exc())
             return None
     
-    # @staticmethod
-    # @sync_to_async
-    # def updateComnet():
+    @staticmethod
+    @sync_to_async
+    def getCommentByCommentId(commentId):
+        try:
+            return CommentModel.objects.get(id=commentId)
+        except CommentModel.DoesNotExist:
+            print(traceback.format_exc())
+            return None

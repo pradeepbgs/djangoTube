@@ -4,6 +4,7 @@ from .models import VideoModel
 from comment.models import CommentModel
 from django.contrib.auth import get_user_model
 from django.db.models import Q, Count, BooleanField, Case, When, Value, F
+import traceback
 
 User = get_user_model()
 
@@ -44,18 +45,16 @@ class VideoRepository:
 
     @staticmethod
     @sync_to_async
-    def get_paginated_videos(videos, limit, page):
+    def get_paginated_videos(filters, order_by, offset, limit):
         try:
-            paginator = Paginator(videos, limit)
-            paginated_videos = paginator.get_page(page)
-        except (EmptyPage, PageNotAnInteger):
-            paginated_videos = paginator.page(1)
-        return {
-            'pagination_data': paginated_videos,
-            'total': paginator.count,
-            'total_pages': paginator.num_pages
-        }
-
+            videos = (VideoModel.objects
+                      .filter(filters)
+                      .select_related('owner')
+                      .order_by(order_by)[offset:offset+limit])
+            return videos            
+        except:
+            return None
+           
     @staticmethod
     @sync_to_async
     def save_video(title, description, thumbnail, video_file, duration, owner):
@@ -138,3 +137,26 @@ class VideoRepository:
             return True
         except:
             return None
+        
+    @staticmethod
+    @sync_to_async
+    def getPaginatedData(data, limit, page):
+        try:
+            paginator = Paginator(data, limit)
+            paginated_videos = paginator.get_page(page)
+        except (EmptyPage, PageNotAnInteger):
+            paginated_videos = paginator.page(1)
+        return {
+            'pagination_data': paginated_videos,
+            'total': paginator.count,
+            'total_pages': paginator.num_pages
+        }
+
+    @staticmethod
+    @sync_to_async
+    def getVideosTotalCound(filters):
+        try:
+            return VideoModel.objects.filter(filters).count()
+        except Exception:
+            print(traceback.format_exc())
+            return 0
