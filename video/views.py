@@ -102,13 +102,10 @@ async def get_user_videos(request,userId):
             return JsonResponse({'success': False, 'message': 'could not find the user'}, status=404)
         
         videos = await VideoRepository.fetch_user_videos(user)
-
-        page_obj = await VideoRepository.get_paginated_videos(videos,limit,page)
-        paginated_videos = page_obj['pagination_data']
         
         # serialize the data 
         data = []
-        for video in paginated_videos:
+        for video in videos:
             data.append({
                 "id": video.id,
                 "title": video.title,
@@ -129,7 +126,6 @@ async def get_user_videos(request,userId):
             "data": data,
             "page": page,
             "limit": limit,
-            "total_pages": page_obj['total_pages'],
             "message": "Videos fetched successfully."
         }, status=status.HTTP_200_OK)
 
@@ -209,36 +205,34 @@ async def get_video_details(request, videoId):
     user = request.user 
     try:
         video = await VideoRepository.getVideoByVideoId(videoId)
-
-        video_details = await VideoRepository.video_details(video, user)
+        if not video:
+            return JsonResponse({'message': 'Video not found'}, status=404)
+  
+        video_details = await VideoRepository.fetch_video_details(video, user)
         
         if not video_details:
-            return JsonResponse({'message': 'Video not found'}, status=404)
-        
-        page = request.GET.get('page', 1)
-        limit = request.GET.get('limit', 10)
+            return JsonResponse({'message': 'No video details found'}, status=404)
 
-        comments = await VideoRepository.get_video_comments(video)
-        paginated_comments = await VideoRepository.get_paginated_comments(comments, limit, page)
-
-        comment_data = [
-            {
-                'id': comment.id,
-                'comment': comment.comment,
-                "username": comment.owner.username,
-                'created_at': comment.created_at
+        data = {
+        "id": video_details.get('id'),
+        "title": video_details.get('title'),
+        "description": video_details.get('description'),
+        "url": video_details.get('video_file') if video_details.get('video_file') else None,
+        "thumbnail": video_details.get('thumbnail') if video_details.get('thumbnail') else None,
+        "duration": video_details.get('duration'),
+        "views": video_details.get('views'),
+        "createdAt": video_details.get('created_at'),
+        'owner': {
+            'id': video_details.get('owner__id'),
+            'username': video_details.get('owner__username'),
             }
-            for comment in paginated_comments
-        ]
-
-        video_details['comments'] = comment_data
-        video_details['pagination'] = {
-            'current_page': paginated_comments.number,
-            'total_pages': paginated_comments.paginator.num_pages,
-            'total_comments': paginated_comments.paginator.count
         }
 
-        return JsonResponse(video_details)
+        return JsonResponse({
+            "success": True,
+            "data": data,
+            "message": "Videos fetched successfully."
+        }, status=status.HTTP_200_OK)
     
     except VideoModel.DoesNotExist:
         return JsonResponse({'error': 'Video not found'}, status=404)

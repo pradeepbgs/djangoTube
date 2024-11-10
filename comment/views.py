@@ -43,7 +43,7 @@ async def add_comment(request,videoId):
 # get video comments by pagination
 @csrf_exempt
 @verify_jwt
-async def get_video_comments(request,videoId):
+async def get_video_comments(request,videoId) -> JsonResponse :
     if request.method != 'GET':
         return JsonResponse({'success': False, 'message': 'Method not allowed'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
@@ -51,26 +51,28 @@ async def get_video_comments(request,videoId):
         return JsonResponse({"success":False,'message':'pls provide video id'},status=status.HTTP_400_BAD_REQUEST)
     
     try:
-        page = request.GET.get('page',1)
-        limit = request.GET.get('limit',10)
+        page = int(request.GET.get('page', 1))
+        limit = int(request.GET.get('limit', 10))
+        offset = (page - 1) * limit
 
         video = await VideoRepository.getVideoByVideoId(videoId)
         if not video:
             return JsonResponse({"success":False,'message':'video doesnt exist'},status=status.HTTP_400_BAD_REQUEST)
         
-        videoComments = await VideoRepository.getVideoCommentsByVideo(video,request.user)
-        paginated_comments = await VideoRepository.get_paginated_comments(videoComments,limit,page)
-
+        videoComments = await CommentRepository.getVideoCommentsByVideo(video,offset,limit)
+        if not videoComments:
+            return JsonResponse({"success":False, 'message':'no comments found'}, status=status.HTTP_400_BAD_REQUEST)
+        
         data = [{
             'id': comment.id,
             'comment': comment.comment,
             'created_at': comment.created_at,
-            'likes': comment.likes_count,
+            'likes': comment.likes.count(),
             'owner': {
                 'id': comment.owner.id,
                 'username': comment.owner.username
             }
-        } for comment in paginated_comments]
+        } for comment in videoComments]
         
         return JsonResponse({'success':True,'message':'successfully retreived the data','data':data}, status=status.HTTP_200_OK)
     
