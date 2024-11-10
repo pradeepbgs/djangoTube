@@ -32,12 +32,12 @@ class LikeRepository:
 
     @staticmethod
     @sync_to_async
-    def getLikedVideos(user):
+    def getLikedVideos(user,offset,limit):
         try:
             liked_videos = LikeModel.objects.filter(
                 liked_by=user,
                 content_type=1
-            ).select_related('liked_by').order_by('created_at')
+            ).select_related('liked_by').order_by('created_at')[offset:offset+limit]
 
             return list(liked_videos)
 

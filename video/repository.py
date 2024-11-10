@@ -40,9 +40,18 @@ class VideoRepository:
 
     @staticmethod
     @sync_to_async
-    def fetch_user_videos(user):
-        return list(VideoModel.objects.filter(owner=user).order_by('created_at'))
-
+    def fetch_user_videos(user,offset,limit):
+        try:
+            return (
+                VideoModel.objects.
+                filter(owner=user)
+                .select_related('owner')
+                .order_by('created_at')[offset:offset+limit]
+                )
+        except:
+            traceback.print_exc()
+            return None
+        
     @staticmethod
     @sync_to_async
     def get_paginated_videos(filters, order_by, offset, limit):
@@ -70,7 +79,7 @@ class VideoRepository:
     @staticmethod
     @sync_to_async
     def fetch_video_details(video, user):
-        return VideoModel.objects.filter(id=video.id).annotate(
+        return (VideoModel.objects.filter(id=video.id).annotate(
             like_count=Count('likes', filter=Q(likes__video=video)),
             subscribers_count=Count('owner__subscribers', filter=Q(owner__subscribers__channel=F('owner'))),
             is_liked=Case(
@@ -92,32 +101,13 @@ class VideoRepository:
             'owner__username',
             'owner__avatar',
         ).first()
+        )
 
     @staticmethod
     @sync_to_async
     def get_video_comments(video):
         return CommentModel.objects.filter(video=video).order_by('created_at')
 
-    @staticmethod
-    @sync_to_async
-    def getVideoCommentsByVideo(video,user):
-        try:
-            return (
-                CommentModel.objects
-                .filter(video=video)
-                .annotate(
-                likes_count = Count('likes', filter=Q(likes__video=video)),
-                is_liked = Case(
-                    When(likes__liked_by=user, then=Value(True)),
-                    default=Value(False),
-                    output_field=BooleanField(),
-                ) if user else Value(False,output_field=BooleanField())
-            )
-            .select_related('owner')
-            .order_by('created_at')
-            )
-        except CommentModel.DoesNotExist:
-            return None
 
     @staticmethod
     @sync_to_async
@@ -159,4 +149,4 @@ class VideoRepository:
             return VideoModel.objects.filter(filters).count()
         except Exception:
             print(traceback.format_exc())
-            return 0
+            return None

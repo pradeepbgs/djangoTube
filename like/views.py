@@ -6,7 +6,7 @@ from .repository import LikeRepository
 from video.repository import VideoRepository
 from comment.repository import CommentRepository
 from django.http import JsonResponse
-
+from rest_framework import status
 
 # Create your views here.
 #toggle video like
@@ -80,15 +80,14 @@ async def get_liked_videos(request):
     try:
         page = int(request.GET.get('page', 1))
         limit = int(request.GET.get('limit', 10))
-
-        liked_videos = await LikeRepository.getLikedVideos(request.user)
+        offset = (page-1)*limit
+        liked_videos = await LikeRepository.getLikedVideos(request.user,offset,limit)
         if not liked_videos:
-            return JsonResponse({'success':True, 'data':[]}, status=200)
+            return JsonResponse({'success':True, 'message':'there are no liked video','data':[]}, status=status.HTTP_404_NOT_FOUND)
         
-        paginated_data = await VideoRepository.get_paginated_videos(liked_videos, page, limit)
 
         data = []
-        for like in paginated_data:
+        for like in liked_videos:
             video = like.video
             owner = video.owner
             data.append({
