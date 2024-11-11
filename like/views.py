@@ -25,7 +25,7 @@ async def toggle_video_like(request,videoId):
         if not video:
             return JsonResponse({'success':False, 'message':'could not find the video'}, status=404)
         
-        like_status = await LikeRepository.toggleLike(request.user, 1,video)
+        like_status = await LikeRepository.toggleLike(request.user,video)
 
         if like_status == 'liked':
             message = 'Video liked successfully'
@@ -54,7 +54,7 @@ async def toggle_comment_like(request, commentId):
         if not comment:
             return JsonResponse({'success':False, 'message':'could not find the comment'}, status=404)
 
-        like_status = await LikeRepository.toggleLike(request.user,2)
+        like_status = await LikeRepository.toggleCommentLike(request.user,comment)
 
         if like_status == 'liked':
             message = 'Comment liked successfully'

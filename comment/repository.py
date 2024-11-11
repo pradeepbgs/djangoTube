@@ -26,11 +26,19 @@ class CommentRepository:
     
     @staticmethod
     @sync_to_async
-    def getVideoCommentsByVideo(video,offset,limit=10):
+    def getVideoCommentsByVideo(video,user,offset,limit=10):
         try:
             result=  (
                  CommentModel.objects.filter(video=video)
                 .select_related('owner')
+                .annotate(
+                    likes_count=Count('likes', filter=Q(comment=video)),
+                          is_liked=Case(
+                            When(likemodel__liked_by=user, then=Value(True)),
+                            default=Value(False),
+                            output_field=BooleanField(),
+                        ) if user else Value(False, output_field=BooleanField())
+                )
                 .order_by('created_at')[offset:offset+limit]
             )
             return list(result) if result.exists() else None

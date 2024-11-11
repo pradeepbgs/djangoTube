@@ -59,7 +59,7 @@ async def get_video_comments(request,videoId) -> JsonResponse :
         if not video:
             return JsonResponse({"success":False,'message':'video doesnt exist'},status=status.HTTP_400_BAD_REQUEST)
         
-        videoComments = await CommentRepository.getVideoCommentsByVideo(video,offset,limit)
+        videoComments = await CommentRepository.getVideoCommentsByVideo(video,request.user,offset,limit)
         if not videoComments:
             return JsonResponse({"success":False, 'message':'no comments found'}, status=status.HTTP_400_BAD_REQUEST)
         
@@ -67,7 +67,8 @@ async def get_video_comments(request,videoId) -> JsonResponse :
             'id': comment.id,
             'comment': comment.comment,
             'created_at': comment.created_at,
-            'likes': comment.likes.count(),
+            'likes': comment.likes_count,
+            'is_liked': comment.is_liked,
             'owner': {
                 'id': comment.owner.id,
                 'username': comment.owner.username
@@ -78,7 +79,7 @@ async def get_video_comments(request,videoId) -> JsonResponse :
     
     except:
         print(traceback.format_exc())
-        return JsonResponse({"success":False,'message':'got error while adding comment'},status=status.HTTP_400_BAD_REQUEST)
+        return JsonResponse({"success":False,'message':'got error while retreiving comment'},status=status.HTTP_400_BAD_REQUEST)
 
 
 #update comment

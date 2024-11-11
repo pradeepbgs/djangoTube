@@ -81,7 +81,7 @@ class VideoRepository:
     def fetch_video_details(video, user):
         return (VideoModel.objects.filter(id=video.id).annotate(
             like_count=Count('likes', filter=Q(likes__video=video)),
-            subscribers_count=Count('owner__subscribers', filter=Q(owner__subscribers__channel=F('owner'))),
+            subscribers_count=Count('owner__subscribers', filter=Q(owner__subscribers__channel=video.owner)),
             is_liked=Case(
                 When(likes__liked_by=user, then=Value(True)),
                 default=Value(False),
