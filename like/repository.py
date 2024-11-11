@@ -7,11 +7,10 @@ class LikeRepository:
 
     @staticmethod
     @sync_to_async
-    def toggleLike(user, content_type, video=None):
+    def toggleLike(user, video):
         try:
             like_query = LikeModel.objects.filter(
                 liked_by=user,
-                content_type=content_type,
                 video=video
             )
             
@@ -21,8 +20,30 @@ class LikeRepository:
             else:
                 LikeModel.objects.create(
                     liked_by=user,
-                    content_type=content_type,
                     video=video
+                )
+                return 'liked'
+
+        except Exception:
+            print(traceback.format_exc())
+            return None
+    
+    @staticmethod
+    @sync_to_async
+    def toggleCommentLike(user, comment):
+        try:
+            like_query = LikeModel.objects.filter(
+                liked_by=user,
+                comment=comment
+            )
+            
+            if like_query.exists():
+                like_query.delete()
+                return 'unliked'
+            else:
+                LikeModel.objects.create(
+                    liked_by=user,
+                    comment=comment
                 )
                 return 'liked'
 
