@@ -6,16 +6,15 @@ from utils.auth import verify_jwt
 from django.views.decorators.csrf import csrf_exempt
 import traceback
 from asgiref.sync import sync_to_async
+from django.views.decorators.http import require_POST,require_GET,require_http_methods
 
 # Create your views here.
 
 # add comment
+@require_POST
 @csrf_exempt
 @verify_jwt
 async def add_comment(request,videoId):
-    if request.method != 'POST':
-        return JsonResponse({'success': False, 'message': 'Method not allowed'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
-    
     if not request.user:
         return JsonResponse({"success":False,'message':'unauthorized user'},status=status.HTTP_401_UNAUTHORIZED)
 
@@ -41,12 +40,10 @@ async def add_comment(request,videoId):
 
 
 # get video comments by pagination
+@require_GET
 @csrf_exempt
 @verify_jwt
 async def get_video_comments(request,videoId) -> JsonResponse :
-    if request.method != 'GET':
-        return JsonResponse({'success': False, 'message': 'Method not allowed'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
-
     if not videoId:
         return JsonResponse({"success":False,'message':'pls provide video id'},status=status.HTTP_400_BAD_REQUEST)
     
@@ -83,12 +80,10 @@ async def get_video_comments(request,videoId) -> JsonResponse :
 
 
 #update comment
+@require_http_methods(['PUT'])
 @csrf_exempt
 @verify_jwt
 async def update_comment(request , commentId):
-    if request.method != 'PUT':
-        return JsonResponse({'success': False, 'message': 'Method not allowed'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
-    
     if not request.user:
         return JsonResponse({"success":False, 'message':'unauthorized user'}, status=status.HTTP_401_UNAUTHORIZED)
     
@@ -117,12 +112,10 @@ async def update_comment(request , commentId):
 
 
 #delete comment
+@require_http_methods(['DELETE'])
 @csrf_exempt
 @verify_jwt
 async def delete_comment(request,commentId):
-    if request.method != 'DELETE':
-        return JsonResponse({'success': False, 'message': 'Method not allowed'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
-    
     if not request.user:
         return JsonResponse({"success":False, 'message':'unauthorized user'}, status=status.HTTP_401_UNAUTHORIZED)
     

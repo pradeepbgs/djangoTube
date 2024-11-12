@@ -7,15 +7,14 @@ from video.repository import VideoRepository
 from comment.repository import CommentRepository
 from django.http import JsonResponse
 from rest_framework import status
+from django.views.decorators.http import require_POST,require_GET
+
 
 # Create your views here.
 #toggle video like
-@csrf_exempt
+@require_POST
 @verify_jwt
 async def toggle_video_like(request,videoId):
-    if request.method != 'POST':
-        return JsonResponse({'success':False,'message':'Method not allowed'},status=405)
-    
     if not request.user:
         return JsonResponse({'success':False,'message':'unauthorized'},status=401)
     
@@ -39,12 +38,9 @@ async def toggle_video_like(request,videoId):
         return JsonResponse({'success':False,'message':'something went wrong'},status=500)
 
 #toggle comment like
-@csrf_exempt
+@require_POST
 @verify_jwt
 async def toggle_comment_like(request, commentId):
-    if request.method != 'POST':
-        return JsonResponse({'success':False, 'message':'Method not allowed'}, status=405)
-
     if not request.user:
         return JsonResponse({'success':False, 'message':'unauthorized'}, status=401)
 
@@ -68,12 +64,9 @@ async def toggle_comment_like(request, commentId):
         return JsonResponse({'success':False, 'message':'something went wrong'}, status=500)
 
 #get liked videos
-@csrf_exempt
+@require_GET
 @verify_jwt
 async def get_liked_videos(request):
-    if request.method != 'GET':
-        return JsonResponse({'success':False, 'message':'Method not allowed'}, status=405)
-
     if not request.user:
         return JsonResponse({'success':False, 'message':'unauthorized'}, status=401)
 

@@ -8,6 +8,15 @@ class UserRepository:
 
     @staticmethod
     @sync_to_async
+    def getUserById(id):
+        try:
+            return User.objects.get(id=id)
+        except User.DoesNotExist:
+            print(traceback.format_exc())
+            return None
+        
+    @staticmethod
+    @sync_to_async
     def getUserByUserName(username):
         try:
             return User.objects.get(username=username)

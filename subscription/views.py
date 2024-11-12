@@ -1,5 +1,6 @@
 from .repository import SubscriptionRepository
 from utils.auth import verify_jwt
+from django.views.decorators.http import require_POST,require_GET,require_http_methods
 from django.views.decorators.csrf import csrf_exempt
 import traceback
 from asgiref.sync import sync_to_async
@@ -7,12 +8,9 @@ from django.http import JsonResponse
 from video.repository import VideoRepository
 
 # Create your views here.
-@csrf_exempt
+@require_POST
 @verify_jwt
 async def toggle_subscription(request,channelId):
-    if request.method != 'POST':
-        return JsonResponse({'error': 'Method not allowed'}, status=405)
-    
     if not request.user:
         return JsonResponse({'error': 'Unauthorized'}, status=401)
     
@@ -35,11 +33,9 @@ async def toggle_subscription(request,channelId):
         return JsonResponse({'error': 'Internal server error'}, status=500)
 
 # get subscribed channels
+@require_GET
 @verify_jwt
 async def get_subscribed_channels(request):
-    if request.method != 'GET':
-        return JsonResponse({'success':False, 'message':'Method not allowed'}, status=405)
-
     if not request.user:
         return JsonResponse({'success':False, 'message':'unauthorized'}, status=401)
 
