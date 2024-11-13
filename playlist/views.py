@@ -1,18 +1,16 @@
-from django.shortcuts import render
 from django.http import JsonResponse
 from utils.auth import verify_jwt
+from django.views.decorators.http import require_POST,require_GET,require_http_methods
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework import status
 from .repository import PlaylistRepository
 import traceback
 # Create your views here.
 
+@require_POST
 @csrf_exempt
 @verify_jwt
 async def createPlaylist(request):
-    if request.method != 'POST':
-        return JsonResponse({'success':False,'message': 'Invalid request method'}, status=400)
-    
     if not request.user:
         return JsonResponse({'success':False,'message':'Unauthorized'},status=status.HTTP_401_UNAUTHORIZED)
     
@@ -40,12 +38,9 @@ async def createPlaylist(request):
         traceback.print_exc()
         return JsonResponse({'success':False, 'message':'Failed to create playlist'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-
+@require_GET
 @verify_jwt
 async def getPlaylist(request, id):
-    if request.method != 'GET':
-        return JsonResponse({'success':False, 'message': 'Invalid request method'}, status=400)
-    
     try:
         page = int(request.GET.get('page', 1))
         limit = int(request.GET.get('limit', 10))
@@ -83,11 +78,9 @@ async def getPlaylist(request, id):
         print(traceback.format_exc())
         return JsonResponse({'success':False, 'message':'Failed to fetch playlist'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+@require_POST
 @verify_jwt
 async def addVideoToPlaylist(request, playlistId,videoId):
-    if request.method != 'POST':
-        return JsonResponse({'success':False, 'message': 'Invalid request method'}, status=400)
-
     if not request.user:
         return JsonResponse({'success':False, 'message':'Unauthorized'}, status=status.HTTP_401_UNAUTHORIZED)
 
@@ -111,11 +104,9 @@ async def addVideoToPlaylist(request, playlistId,videoId):
         traceback.print_exc()
         return JsonResponse({'success':False, 'message':'Failed to add video to playlist'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+@require_http_methods(['DELETE'])
 @verify_jwt
 async def removeVideoFromPlaylist(request, playlistId, videoId):
-    if request.method != 'DELETE':
-        return JsonResponse({'success':False, 'message': 'Invalid request method'}, status=400)
-
     if not request.user:
         return JsonResponse({'success':False, 'message':'Unauthorized'}, status=status.HTTP_401_UNAUTHORIZED)
 
@@ -139,11 +130,9 @@ async def removeVideoFromPlaylist(request, playlistId, videoId):
         traceback.print_exc()
         return JsonResponse({'success':False, 'message':'Failed to remove video from playlist'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+require_http_methods(['PUT'])
 @verify_jwt
 async def updatePlaylist(request, playlistId):
-    if request.method != 'PUT':
-        return JsonResponse({'success':False, 'message': 'Invalid request method'}, status=400)
-
     if not request.user:
         return JsonResponse({'success':False, 'message':'Unauthorized'}, status=status.HTTP_401_UNAUTHORIZED)
 
@@ -171,6 +160,7 @@ async def updatePlaylist(request, playlistId):
         traceback.print_exc()
         return JsonResponse({'success':False, 'message':'Failed to update playlist'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+@require_http_methods(['DELETE'])
 @verify_jwt
 async def deletePlaylist(request, playlistId):
     if request.method != 'DELETE':

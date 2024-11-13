@@ -1,19 +1,24 @@
 from django.http import JsonResponse
+from django.views.decorators.http import require_POST,require_GET
 from rest_framework import status
 from django.views.decorators.csrf import csrf_exempt
-from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
 from asgiref.sync import sync_to_async
 from django.contrib.auth import get_user_model
-from utils.cloudinary import upload_image
+from utils.cloudinary import upload_image , delete_file_from_cloudinary
 from utils.jwt import generate_token
 import traceback
 from .repository import UserRepository
+from video.repository import VideoRepository
+from utils.jwt import verify_token
+import traceback
 User = get_user_model()
 # Create your views here.
+
+
+@require_POST
 @csrf_exempt
 async def register_user(request):
-    if request.method == 'POST':
         try:
             email = request.POST.get('email')
             username = request.POST.get('username')
@@ -59,15 +64,11 @@ async def register_user(request):
         except Exception as e:
             print(traceback.format_exc())
             return JsonResponse({'success': False, 'error': 'Something went wrong : {}'.format(str(e))}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    else:
-        return JsonResponse({'success':False,'message':'Method not allowd'},status=status.HTTP_405_METHOD_NOT_ALLOWED)
     
-
 # login 
-
+@require_POST
 @csrf_exempt
 async def login_user(request):
-    if request.method == 'POST':
         username = request.POST.get("username")
         password = request.POST.get("password")
 
@@ -81,7 +82,7 @@ async def login_user(request):
 
         if user is not  None:
             token = await generate_token(user)
-            response = JsonResponse({'success': True, 'message': 'Login successful'})
+            response = JsonResponse({'success': True, 'message': 'Login successful'},status=200)
             response.set_cookie(
                 key='token', 
                 value=token, 
@@ -91,6 +92,115 @@ async def login_user(request):
             return response
         else:
             return JsonResponse({'success': False, 'error': 'Invalid username or password'}, status=401)
+
+
+@require_POST
+@verify_token
+async def logout(request):
+
+    if not request.user:
+        return JsonResponse({'success': False, 'error': 'Unauthenticated'}, status=status.HTTP_401_UNAUTHORIZED)
+    try:
+        response = JsonResponse({'success': True, 'message': 'Logout successful'})
+        response.delete_cookie('token')
+        return response
+    except:
+        traceback.print_exc()
+        return JsonResponse({'success': False, 'error': 'Something went wrong'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@require_GET
+@verify_token
+async def get_user(request):
+    try:
+        user = request.user
+        if user:
+            return JsonResponse({'success': True, 'user': user.to_dict()})
+        else:
+            return JsonResponse({'success': False, 'error': 'User not found'}, status=404)
+    except Exception as e:
+        print(traceback.format_exc())
+        return JsonResponse({'success': False, 'error': 'Something went wrong : {}'.format(str(e))}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@require_POST
+@verify_token
+async def update_user(request):
+    try:
+        if not request.user:
+            return JsonResponse({'success': False, 'error': 'Unauthenticated'}, status=404)
         
-    else:
-        return JsonResponse({'success':False,'message':'Method not allowd'},status=status.HTTP_405_METHOD_NOT_ALLOWED)
+        username = request.POST.get('username')
+        fullname = request.POST.get('fullname')
+        avatar = request.FILES.get('avatar')
+        coverImage = request.FILES.get('coverImage')
+
+        user = UserRepository.getUserById(request.user.id)
+        if not user:
+            return JsonResponse({'success': False, 'error': 'User not found'}, status=404)
+        
+        if username:
+            user.username = username
+        if fullname:
+            user.fullname = fullname
+
+        if avatar:
+            oldAvatar = user.avatar
+            res = await upload_image(avatar)
+            avatar_url = res.get('secure_url')
+            user.avatar = avatar_url
+            if oldAvatar:
+                await delete_file_from_cloudinary(oldAvatar)
+
+        if coverImage:
+            oldCoverImage = user.coverImage
+            res = await upload_image(coverImage)
+            coverImage_url = res.get('secure_url')
+            user.coverImage = coverImage_url
+            if oldCoverImage:
+                await delete_file_from_cloudinary(oldCoverImage)
+
+        await UserRepository.saveUser(user)
+        return JsonResponse({'success': True, 'message': 'User details updated successfully'},status=status.HTTP_200_OK)
+    except Exception as e:
+        print(traceback.format_exc())
+        return JsonResponse({'success': False, 'error': 'Something went wrong : {}'.format(str(e))}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@require_GET
+async def getUserChannelProfile(request, username):
+    try:
+        user = await UserRepository.getUserByUserName(username)
+        if not user:
+            return JsonResponse({'success': False, 'error': 'User not found'}, status=404)
+        
+        page = int(request.GET.get('page', 1))
+        limit = int(request.GET.get('limit', 10))
+        offset = (page - 1) * limit
+
+        userChannelDetails = await VideoRepository.fetch_user_videos(user, offset, limit)
+
+        data = [
+            {
+            'user':{
+                'id':user.id,
+                'username':user.username,
+                'fullname':user.fullname,
+                'avatar':user.avatar,
+                'coverImage':user.coverImage,
+            },
+            "videos":{
+                "id": video.id,
+            "title": video.title,
+            "description": video.description,
+            "url": video.video_file if video.video_file else None,
+            "thumbnail": video.thumbnail if video.thumbnail else None,
+            "duration": video.duration,
+            "views": video.views,
+            "createdAt": video.created_at,
+            }
+        } for video in userChannelDetails
+        ]
+        return JsonResponse({'success': True, 'data': data}, status=status.HTTP_200_OK)
+    except Exception as e:
+        print(traceback.format_exc())
+        return JsonResponse({'success': False, 'error': 'Something went wrong : {}'.format(str(e))}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

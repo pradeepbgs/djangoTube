@@ -1,4 +1,5 @@
 from asgiref.sync import sync_to_async
+from django.views.decorators.http import require_POST,require_GET,require_http_methods
 from .models import VideoModel
 from django.http import JsonResponse
 from django.db.models import Q
@@ -9,11 +10,12 @@ from utils.auth import verify_jwt
 import traceback
 from .repository import VideoRepository
 
+
 # Create your views here.
 
 # get all video with search/filter 
+@require_GET
 async def get_all_videos(request):
-    if request.method == 'GET':
         page = int(request.GET.get('page',1))
         limit = int(request.GET.get('limit', 10))
         offset = (page - 1) * limit
@@ -80,15 +82,12 @@ async def get_all_videos(request):
                     "message": "Something went wrong.",
                 }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
-    else:
-        return JsonResponse({'success':False,'message':'Method not allowd'},status=status.HTTP_405_METHOD_NOT_ALLOWED)
     
 
 # get user videos by pagination
+@require_GET
 async def get_user_videos(request,userId):
-    if request.method != 'GET':
-        return JsonResponse({'success': False, 'message': 'Method not allowed'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
-
+   
     page = request.GET.get('page',1)
     limit = request.GET.get('limit',10)
     offset = (page-1) * limit
@@ -138,11 +137,10 @@ async def get_user_videos(request,userId):
     
 
 # upload videos
+@require_POST
 @csrf_exempt
 @verify_jwt
 async def upload_video(request):
-    if request.method != 'POST':
-        return JsonResponse({'success': False, 'message': 'Method not allowed'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
     if not request.user:
         return JsonResponse({
             "success":False,
@@ -196,12 +194,10 @@ async def upload_video(request):
         status=status.HTTP_201_CREATED)
 
 # needs to work on get video details as we dont need to get comment here , we will build another api
+@require_GET
 @csrf_exempt
 @verify_jwt
 async def get_video_details(request, videoId):
-    if request.method != 'GET':
-        return JsonResponse({'success': False, 'message': 'Method not allowed'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
-
     user = request.user 
     try:
         video = await VideoRepository.getVideoByVideoId(videoId)
@@ -237,15 +233,10 @@ async def get_video_details(request, videoId):
     except VideoModel.DoesNotExist:
         return JsonResponse({'error': 'Video not found'}, status=404)
 
+@require_POST
 @csrf_exempt
 @verify_jwt
 async def update_video_details(request,videoId):
-    if request.method != 'POST':
-        return JsonResponse({
-      'success':False,
-      'message':'Method not allowed'
-        },status=status.HTTP_405_METHOD_NOT_ALLOWED)
-
     if not request.user:
         return JsonResponse({
       'success':False,
@@ -307,7 +298,8 @@ async def update_video_details(request,videoId):
             "message": "Something went wrong while updating video details",
             "error": str(e)
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
+
+@require_http_methods(["DELETE"])
 @csrf_exempt
 @verify_jwt
 async def delete_video(request, videoId):
@@ -351,6 +343,7 @@ async def delete_video(request, videoId):
             'error': str(e)
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+@require_http_methods(["PATCH"])
 @csrf_exempt
 @verify_jwt
 async def toggle_publish_status(request, videoId):
