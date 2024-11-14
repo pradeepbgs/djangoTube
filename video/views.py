@@ -205,7 +205,6 @@ async def get_video_details(request, videoId):
             return JsonResponse({'message': 'Video not found'}, status=404)
   
         video_details = await VideoRepository.fetch_video_details(video, user)
-        
         if not video_details:
             return JsonResponse({'message': 'No video details found'}, status=404)
 
@@ -215,6 +214,8 @@ async def get_video_details(request, videoId):
         "description": video_details.get('description'),
         "url": video_details.get('video_file') if video_details.get('video_file') else None,
         "thumbnail": video_details.get('thumbnail') if video_details.get('thumbnail') else None,
+        "likes": video_details.get('like_count'),
+        "is_liked": video_details.get('is_liked'),
         "duration": video_details.get('duration'),
         "views": video_details.get('views'),
         "createdAt": video_details.get('created_at'),

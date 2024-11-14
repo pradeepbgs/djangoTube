@@ -42,12 +42,13 @@ class VideoRepository:
     @sync_to_async
     def fetch_user_videos(user,offset,limit):
         try:
-            return (
+            videos =  (
                 VideoModel.objects.
                 filter(owner=user)
                 .select_related('owner')
                 .order_by('created_at')[offset:offset+limit]
                 )
+            return videos if videos else None
         except:
             traceback.print_exc()
             return None

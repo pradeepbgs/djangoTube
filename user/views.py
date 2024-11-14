@@ -1,18 +1,17 @@
 from django.http import JsonResponse
-from django.views.decorators.http import require_POST,require_GET
+from django.views.decorators.http import require_POST,require_GET,require_http_methods
 from rest_framework import status
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth import authenticate
 from asgiref.sync import sync_to_async
-from django.contrib.auth import get_user_model
 from utils.cloudinary import upload_image , delete_file_from_cloudinary
 from utils.jwt import generate_token
 import traceback
 from .repository import UserRepository
 from video.repository import VideoRepository
-from utils.jwt import verify_token
+from utils.auth import verify_jwt
 import traceback
-User = get_user_model()
+
 # Create your views here.
 
 
@@ -95,7 +94,8 @@ async def login_user(request):
 
 
 @require_POST
-@verify_token
+@csrf_exempt
+@verify_jwt
 async def logout(request):
 
     if not request.user:
@@ -110,12 +110,23 @@ async def logout(request):
 
 
 @require_GET
-@verify_token
+@verify_jwt
 async def get_user(request):
     try:
-        user = request.user
+        if not request.user:
+            return JsonResponse({'success': False, 'error': 'Unauthenticated'}, status=404)
+        user = await UserRepository.getUserById(request.user.id)
+        userData = {
+            'id':user.id,
+            'username':user.username,
+            'fullname':user.fullname,
+            'avatar':user.avatar if user.avatar else None,
+            'coverImage':user.coverImage if user.coverImage else None,
+            # 'email':user.email,
+            'createdAt':user.created_at,
+        }
         if user:
-            return JsonResponse({'success': True, 'user': user.to_dict()})
+            return JsonResponse({'success': True, 'user': userData})
         else:
             return JsonResponse({'success': False, 'error': 'User not found'}, status=404)
     except Exception as e:
@@ -123,7 +134,8 @@ async def get_user(request):
         return JsonResponse({'success': False, 'error': 'Something went wrong : {}'.format(str(e))}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @require_POST
-@verify_token
+@csrf_exempt
+@verify_jwt
 async def update_user(request):
     try:
         if not request.user:
@@ -134,7 +146,7 @@ async def update_user(request):
         avatar = request.FILES.get('avatar')
         coverImage = request.FILES.get('coverImage')
 
-        user = UserRepository.getUserById(request.user.id)
+        user = await UserRepository.getUserById(request.user.id)
         if not user:
             return JsonResponse({'success': False, 'error': 'User not found'}, status=404)
         
@@ -169,6 +181,8 @@ async def update_user(request):
 @require_GET
 async def getUserChannelProfile(request, username):
     try:
+        if not username:
+            return JsonResponse({'success': False, 'error': 'Username is required'}, status=status.HTTP_400_BAD_REQUEST)
         user = await UserRepository.getUserByUserName(username)
         if not user:
             return JsonResponse({'success': False, 'error': 'User not found'}, status=404)
@@ -178,16 +192,16 @@ async def getUserChannelProfile(request, username):
         offset = (page - 1) * limit
 
         userChannelDetails = await VideoRepository.fetch_user_videos(user, offset, limit)
-
-        data = [
-            {
-            'user':{
+        
+        user = {
                 'id':user.id,
                 'username':user.username,
                 'fullname':user.fullname,
-                'avatar':user.avatar,
-                'coverImage':user.coverImage,
-            },
+                'avatar':user.avatar if user.avatar else None,
+                'coverImage':user.coverImage if user.coverImage else None,
+            }
+        data = [
+            {
             "videos":{
                 "id": video.id,
             "title": video.title,
@@ -199,7 +213,9 @@ async def getUserChannelProfile(request, username):
             "createdAt": video.created_at,
             }
         } for video in userChannelDetails
-        ]
+        ] if userChannelDetails else []
+
+        data = {'user':user, 'videos':data}
         return JsonResponse({'success': True, 'data': data}, status=status.HTTP_200_OK)
     except Exception as e:
         print(traceback.format_exc())
