@@ -19,7 +19,8 @@ class CommentRepository:
     @sync_to_async
     def getCommentByCommentId(commentId):
         try:
-            return CommentModel.objects.get(id=commentId)
+            comment =  CommentModel.objects.get(id=commentId)
+            return comment if comment else None
         except CommentModel.DoesNotExist:
             print(traceback.format_exc())
             return None
@@ -34,7 +35,7 @@ class CommentRepository:
                 .annotate(
                     likes_count=Count('likes', filter=Q(comment=video)),
                           is_liked=Case(
-                            When(likemodel__liked_by=user, then=Value(True)),
+                            When(likes__liked_by=user, then=Value(True)),
                             default=Value(False),
                             output_field=BooleanField(),
                         ) if user else Value(False, output_field=BooleanField())

@@ -5,6 +5,7 @@ from django.views.decorators.csrf import csrf_exempt
 from rest_framework import status
 from .repository import PlaylistRepository
 import traceback
+from asgiref.sync import sync_to_async
 # Create your views here.
 
 @require_POST
@@ -15,7 +16,7 @@ async def createPlaylist(request):
         return JsonResponse({'success':False,'message':'Unauthorized'},status=status.HTTP_401_UNAUTHORIZED)
     
     try:
-        playlistName = request.POST.get('playlistName')
+        playlistName = request.POST.get('playlistName', None)
         if not playlistName:
             return JsonResponse({'success':False, 'message':'Playlist name is required'}, status=status.HTTP_400_BAD_REQUEST)
         
@@ -44,41 +45,57 @@ async def getPlaylist(request, id):
     try:
         page = int(request.GET.get('page', 1))
         limit = int(request.GET.get('limit', 10))
-        offset = ( page- 1 ) * limit
+        offset = (page - 1) * limit
 
-        playlist = await PlaylistRepository.getPlaylistWithVideos(id, request.user, offset, limit)
+        if not id:
+            return JsonResponse({'success': False, 'message': 'Please provide playlist id'}, status=status.HTTP_400_BAD_REQUEST)
+
+        playlist = await PlaylistRepository.getPlaylistById(id)
         if not playlist:
-            return JsonResponse({'success':False, 'message':'Playlist not found'}, status=status.HTTP_404_NOT_FOUND)
-        
-        playlistdata = {
-                "id": playlist.id,
-                "name": playlist.name,
-                "description": playlist.description,
+            return JsonResponse({'success': False, 'message': 'Playlist not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        videos = await PlaylistRepository.getPlaylistVideos(playlist, offset, limit)
+        if videos is None:
+            return JsonResponse({'success': False, 'message': 'No videos'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        playlistOwner = await sync_to_async(lambda: playlist.owner)()
+
+        videos_data = []
+        for video in videos:
+            owner = await sync_to_async(lambda: video.owner)()
+            videos_data.append({
+                "id": video.id,
+                "title": video.title,
+                "description": video.description,
+                "thumbnail": video.thumbnail,
+                "videoFile": video.video_file,
                 "owner": {
-                    "username": playlist.owner.username,
-                    "profilePicture": playlist.owner.avatar if playlist.owner.avatar else None
+                    "username": owner.username,
+                    "avatar": owner.avatar if owner.avatar else None
                 },
-                'videos':[
-                    {
-                        "id": video.id,
-                        "title": video.title,
-                        "thumbnail": video.thumbnail,
-                        "created_at": video.created_at,
-                        "owner": {
-                            "username": video.owner.username,
-                            "profilePicture": video.owner.avatar if video.owner.avatar else None
-                        }
-                    }
-                    for video in playlist.videos.all()
-                ]
+                "createdAt": video.created_at
+            })
+
+        playlistdata = {
+            "id": playlist.id,
+            "name": playlist.name,
+            "description": playlist.description,
+            "owner": {
+                "username": playlistOwner.username,
+                "profilePicture": playlistOwner.avatar if playlistOwner.avatar else None
+            },
+            "videos": videos_data
         }
-        return JsonResponse({'success':True, 'message':'Playlist fetched successfully', 'data':playlistdata}, status=status.HTTP_200_OK)
-    
-    except:
+
+        return JsonResponse({'success': True, 'message': 'Playlist fetched successfully', 'data': playlistdata}, status=status.HTTP_200_OK)
+
+    except Exception:
         print(traceback.format_exc())
-        return JsonResponse({'success':False, 'message':'Failed to fetch playlist'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return JsonResponse({'success': False, 'message': 'Failed to fetch playlist'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 @require_POST
+@csrf_exempt
 @verify_jwt
 async def addVideoToPlaylist(request, playlistId,videoId):
     if not request.user:
@@ -91,11 +108,11 @@ async def addVideoToPlaylist(request, playlistId,videoId):
         if not videoId:
             return JsonResponse({'success':False, 'message':'Video id is required'}, status=status.HTTP_400_BAD_REQUEST)
 
-        playlist = await PlaylistRepository.getPlaylistById(id, request.user)
+        playlist = await PlaylistRepository.getUserPlaylist(playlistId,request.user)
         if not playlist:
             return JsonResponse({'success':False, 'message':'Playlist not found'}, status=status.HTTP_404_NOT_FOUND)
 
-        playlist.videos.add(videoId)
+        await sync_to_async(playlist.videos.add)(videoId)
         await PlaylistRepository.savePlaylist(playlist)
 
         return JsonResponse({'success':True, 'message':'Video added to playlist successfully'}, status=status.HTTP_200_OK)
@@ -105,6 +122,7 @@ async def addVideoToPlaylist(request, playlistId,videoId):
         return JsonResponse({'success':False, 'message':'Failed to add video to playlist'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @require_http_methods(['DELETE'])
+@csrf_exempt
 @verify_jwt
 async def removeVideoFromPlaylist(request, playlistId, videoId):
     if not request.user:
@@ -117,11 +135,11 @@ async def removeVideoFromPlaylist(request, playlistId, videoId):
         if not videoId:
             return JsonResponse({'success':False, 'message':'Video id is required'}, status=status.HTTP_400_BAD_REQUEST)
 
-        playlist = await PlaylistRepository.getPlaylistById(id, request.user)
+        playlist = await PlaylistRepository.getUserPlaylist(playlistId, request.user)
         if not playlist:
             return JsonResponse({'success':False, 'message':'Playlist not found'}, status=status.HTTP_404_NOT_FOUND)
 
-        playlist.videos.remove(videoId)
+        await sync_to_async(playlist.videos.remove)(videoId)
         await PlaylistRepository.savePlaylist(playlist)
 
         return JsonResponse({'success':True, 'message':'Video removed from playlist successfully'}, status=status.HTTP_200_OK)
@@ -130,7 +148,8 @@ async def removeVideoFromPlaylist(request, playlistId, videoId):
         traceback.print_exc()
         return JsonResponse({'success':False, 'message':'Failed to remove video from playlist'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-require_http_methods(['PUT'])
+require_POST
+@csrf_exempt
 @verify_jwt
 async def updatePlaylist(request, playlistId):
     if not request.user:
@@ -140,12 +159,12 @@ async def updatePlaylist(request, playlistId):
         if not playlistId:
             return JsonResponse({'success':False, 'message':'playlist id is required'}, status=status.HTTP_400_BAD_REQUEST)
 
-        playlist = await PlaylistRepository.getPlaylistById(id, request.user)
+        playlist = await PlaylistRepository.getUserPlaylist(playlistId, request.user)
         if not playlist:
             return JsonResponse({'success':False, 'message':'Playlist not found'}, status=status.HTTP_404_NOT_FOUND)
 
         playlistName = request.POST.get('playlistName')
-        playlistDescription = request.POST.get('playlistDescription')
+        playlistDescription = request.POST.get('description')
 
         if playlistName:
             playlist.name = playlistName

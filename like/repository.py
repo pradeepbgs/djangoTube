@@ -55,12 +55,15 @@ class LikeRepository:
     @sync_to_async
     def getLikedVideos(user,offset,limit):
         try:
-            liked_videos = LikeModel.objects.filter(
+            liked_videos = (
+                LikeModel.objects.filter(
                 liked_by=user,
-                content_type=1
-            ).select_related('liked_by').order_by('created_at')[offset:offset+limit]
+            )
+            .select_related('video')
+            .order_by('created_at')[offset:offset+limit]
+            )
 
-            return list(liked_videos)
+            return list(liked_videos) if liked_videos else None
 
         except Exception:
             print(traceback.format_exc())

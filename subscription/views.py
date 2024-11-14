@@ -5,10 +5,11 @@ from django.views.decorators.csrf import csrf_exempt
 import traceback
 from asgiref.sync import sync_to_async
 from django.http import JsonResponse
-from video.repository import VideoRepository
+from user.repository import UserRepository
 
 # Create your views here.
 @require_POST
+@csrf_exempt
 @verify_jwt
 async def toggle_subscription(request,channelId):
     if not request.user:
@@ -18,9 +19,15 @@ async def toggle_subscription(request,channelId):
         return JsonResponse({'error': 'Channel ID is required'}, status=400)
     
     try:
-        subscriber = request.user
+        subscriber = await UserRepository.getUserById(request.user.id)
+        if not subscriber:
+            return JsonResponse({'error': 'Subscriber not found'}, status=404)
         
-        result = await SubscriptionRepository.toggleSubscription(subscriber, channelId)
+        channel = await UserRepository.getUserById(channelId)
+        if not channel:
+            return JsonResponse({'error': 'Channel not found'}, status=404)
+        
+        result = await SubscriptionRepository.toggleSubscription(subscriber, channel)
         if result == 'subscribed':
             message=  'Subscribed successfully'
         else:
@@ -55,7 +62,7 @@ async def get_subscribed_channels(request):
                 'owner': {
                     'id': sub.channel.id,
                     'username': sub.channel.username,
-                    'avatar': sub.channel.profile.avatar
+                    'avatar': sub.channel.avatar if sub.channel.avatar else None
                 },
             }
             for sub in subscribed_channels

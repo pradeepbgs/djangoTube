@@ -1,4 +1,3 @@
-from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
 from utils.auth import verify_jwt
 import traceback
@@ -8,11 +7,12 @@ from comment.repository import CommentRepository
 from django.http import JsonResponse
 from rest_framework import status
 from django.views.decorators.http import require_POST,require_GET
-
+from asgiref.sync import sync_to_async
 
 # Create your views here.
 #toggle video like
 @require_POST
+@csrf_exempt
 @verify_jwt
 async def toggle_video_like(request,videoId):
     if not request.user:
@@ -68,12 +68,13 @@ async def toggle_comment_like(request, commentId):
 @verify_jwt
 async def get_liked_videos(request):
     if not request.user:
-        return JsonResponse({'success':False, 'message':'unauthorized'}, status=401)
+        return JsonResponse({'success':False, 'message':'unauthenticated'}, status=401)
 
     try:
         page = int(request.GET.get('page', 1))
         limit = int(request.GET.get('limit', 10))
         offset = (page-1)*limit
+
         liked_videos = await LikeRepository.getLikedVideos(request.user,offset,limit)
         if not liked_videos:
             return JsonResponse({'success':True, 'message':'there are no liked video','data':[]}, status=status.HTTP_404_NOT_FOUND)
@@ -82,11 +83,11 @@ async def get_liked_videos(request):
         data = []
         for like in liked_videos:
             video = like.video
-            owner = video.owner
+            owner = await sync_to_async(lambda: video.owner)()
             data.append({
                 'id': video.id,
                 'title': video.title,
-                'url': video.videoFile,
+                'url': video.video_file,
                 'thumbnail_url': video.thumbnail,
                 'owner': {
                     'id': owner.id,

@@ -43,7 +43,6 @@ class PlaylistRepository:
                     )
                 )
                 .select_related('owner')
-                .first()
             )
             return playlist if playlist else None
         except:
@@ -52,7 +51,31 @@ class PlaylistRepository:
     
     @staticmethod
     @sync_to_async
-    def getPlaylistById(id,user):
+    def getPlaylistVideos(playlist,offset,limit):
+        try:
+            videos = (
+                playlist.videos.all()
+                .select_related('owner')
+                .order_by('created_at')[offset:offset+limit]
+                )
+            return list(videos) if videos else None
+        except:
+            traceback.print_exc()
+            return None
+    
+    @staticmethod
+    @sync_to_async
+    def getPlaylistById(id):
+        try:
+            playlist = PlaylistModel.objects.get(id=id)
+            return playlist if playlist else None
+        except:
+            print(traceback.format_exc())
+            return None
+    
+    @staticmethod
+    @sync_to_async
+    def getUserPlaylist(id,user):
         try:
             playlist = PlaylistModel.objects.get(id=id,owner=user)
             return playlist if playlist else None

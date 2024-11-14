@@ -41,7 +41,6 @@ async def add_comment(request,videoId):
 
 # get video comments by pagination
 @require_GET
-@csrf_exempt
 @verify_jwt
 async def get_video_comments(request,videoId) -> JsonResponse :
     if not videoId:
@@ -70,7 +69,7 @@ async def get_video_comments(request,videoId) -> JsonResponse :
                 'id': comment.owner.id,
                 'username': comment.owner.username
             }
-        } for comment in videoComments]
+        } for comment in videoComments] if videoComments else None
         
         return JsonResponse({'success':True,'message':'successfully retreived the data','data':data}, status=status.HTTP_200_OK)
     
@@ -80,7 +79,7 @@ async def get_video_comments(request,videoId) -> JsonResponse :
 
 
 #update comment
-@require_http_methods(['PUT'])
+@require_POST
 @csrf_exempt
 @verify_jwt
 async def update_comment(request , commentId):
@@ -99,7 +98,8 @@ async def update_comment(request , commentId):
         if not comment:
             return JsonResponse({"success":False, 'message':'comment doesnt exist'}, status=status.HTTP_400_BAD_REQUEST)
         
-        if comment.owner.id != request.user.id:
+        comment_owner_id = await sync_to_async(lambda: comment.owner.id)()
+        if comment_owner_id != request.user.id:
             return JsonResponse({"success":False, 'message':'you are not the owner of this comment'}, status=status.HTTP_401_UNAUTHORIZED)
         
         comment.comment = comment_text
@@ -127,7 +127,8 @@ async def delete_comment(request,commentId):
             if not comment:
                 return JsonResponse({"success":False, 'message':'comment doesnt exist'}, status=status.HTTP_400_BAD_REQUEST)
 
-            if comment.owner.id != request.user.id:
+            comment_owner_id = await sync_to_async(lambda: comment.owner.id)()
+            if comment_owner_id != request.user.id:
                 return JsonResponse({"success":False, 'message':'you are not the owner of this comment'}, status=status.HTTP_401_UNAUTHORIZED)
 
             await sync_to_async(comment.delete)()
