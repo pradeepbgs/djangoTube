@@ -1,7 +1,8 @@
 from asgiref.sync import sync_to_async
 from django.contrib.auth import get_user_model
 import traceback
-from django.contrib.auth.models import User
+from django.contrib.auth.models import User 
+from django.db.models import Count,Q,F
 
 User = get_user_model()
 
@@ -20,7 +21,14 @@ class UserRepository:
     @sync_to_async
     def getUserByUserName(username):
         try:
-            user =  User.objects.get(username=username)
+            user =  (
+                User.objects
+                .filter(username=username)
+                .annotate(
+                    subscribers_count = Count('subscribers', filter=Q(subscribers__channel=F('id')))
+                )
+                .first()
+                )
             return user if user else None
         except User.DoesNotExist:
             print(traceback.format_exc())
@@ -57,7 +65,7 @@ class UserRepository:
         try:
             user =  user.save()
             return user
-        except:
+        except Exception as e:
             print(f"Error saving user: {e}")
             traceback.print_exc()
             return None

@@ -22,11 +22,12 @@ class SubscriptionRepository:
     @sync_to_async
     def get_paginated_subscribed_channels(user,offset,limit):
         try:
-            return (SubscriptionModel.objects
+            channel = (SubscriptionModel.objects
                     .filter(subscriber=user)
                     .select_related('channel')
                     .order_by('created_at')[offset:offset+limit]
                 )
+            return channel if channel else None
         except SubscriptionModel.DoesNotExist:
             print(traceback.format_exc())
             return None

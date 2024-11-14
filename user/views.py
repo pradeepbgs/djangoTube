@@ -199,6 +199,7 @@ async def getUserChannelProfile(request, username):
                 'fullname':user.fullname,
                 'avatar':user.avatar if user.avatar else None,
                 'coverImage':user.coverImage if user.coverImage else None,
+                'subscribers_count': user.subscribers_count,
             }
         data = [
             {
