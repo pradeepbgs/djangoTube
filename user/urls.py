@@ -7,5 +7,6 @@ urlpatterns = [
     path('logout/', views.logout,name='logout'),
     path('user/', views.get_user, name='get user'),
     path('update/', views.update_user),
-    path('channel/<username>/', views.getUserChannelProfile)
+    path('c/<username>/', views.getUserChannelProfile),
+    path('refreshAccessToken',views.refreshAccessToken)
 ]

@@ -5,15 +5,25 @@ from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth import authenticate
 from asgiref.sync import sync_to_async
 from utils.cloudinary import upload_image , delete_file_from_cloudinary
-from utils.jwt import generate_token
+from utils.jwt import generateAccessToken,generateRefreshToken,verify_token
 import traceback
 from .repository import UserRepository
 from video.repository import VideoRepository
 from utils.auth import verify_jwt
 import traceback
+import json
+from urllib.parse import unquote
 
 # Create your views here.
 
+async def generateAccessAndRefreshToken(user):
+    try:
+        access_token = await generateAccessToken(user)
+        refresh_token = await generateRefreshToken(user)
+        return access_token, refresh_token
+    except Exception as e:
+        print('something went wrong while generating access and refresh token',traceback.format_exc())
+        return None
 
 @require_POST
 @csrf_exempt
@@ -48,14 +58,14 @@ async def register_user(request):
             avatar_url = None
             if avatar:
                 res = await upload_image(avatar)
-                avatar_url = res.get('secure_url')
+                avatar_url = unquote(res.get('secure_url'))
             
             coverImage_url = None
             if coverImage:
                 res = await upload_image(coverImage)
-                coverImage_url = res.get('secure_url')
+                coverImage_url = unquote(res.get('secure_url'))
             
-            user.avatat = avatar_url
+            user.avatar = avatar_url
             user.coverImage = coverImage_url
             await UserRepository.saveUser(user)
             if user:
@@ -68,9 +78,10 @@ async def register_user(request):
 @require_POST
 @csrf_exempt
 async def login_user(request):
+        
         username = request.POST.get("username")
         password = request.POST.get("password")
-
+    
         if not username:
             return JsonResponse({'success':False,'error':'plss give username'},status=400)
         
@@ -80,14 +91,34 @@ async def login_user(request):
         user = await sync_to_async(authenticate)(username=username,password=password)
 
         if user is not  None:
-            token = await generate_token(user)
-            response = JsonResponse({'success': True, 'message': 'Login successful'},status=200)
+            accesToken,refreshToken = await generateAccessAndRefreshToken(user)
+            response = JsonResponse({
+                'success': True, 
+                'message': 'Login successful',
+                'user': {
+                    'id': user.id,
+                    'username': user.username,
+                    'fullname': user.fullname,
+                    'avatar': user.avatar if user.avatar else None,
+                    'coverImage': user.coverImage if user.coverImage else None,
+                    'createdAt': user.created_at,
+                    'accessToken': accesToken,
+                    'refreshToken':refreshToken
+                    }
+                },status=200)
             response.set_cookie(
-                key='token', 
-                value=token, 
+                key='accessToken', 
+                value=accesToken, 
                 httponly=True,
                 secure=True,
                 )
+            response.set_cookie(
+                key='refreshToken',
+                value=refreshToken,
+                httponly=True,
+                secure=True,
+                samesite='None'
+            )
             return response
         else:
             return JsonResponse({'success': False, 'error': 'Invalid username or password'}, status=401)
@@ -158,7 +189,7 @@ async def update_user(request):
         if avatar:
             oldAvatar = user.avatar
             res = await upload_image(avatar)
-            avatar_url = res.get('secure_url')
+            avatar_url = unquote(res.get('secure_url'))
             user.avatar = avatar_url
             if oldAvatar:
                 await delete_file_from_cloudinary(oldAvatar)
@@ -166,12 +197,13 @@ async def update_user(request):
         if coverImage:
             oldCoverImage = user.coverImage
             res = await upload_image(coverImage)
-            coverImage_url = res.get('secure_url')
+            coverImage_url = unquote(res.get('secure_url'))
+            print(coverImage_url)
             user.coverImage = coverImage_url
             if oldCoverImage:
                 await delete_file_from_cloudinary(oldCoverImage)
 
-        await UserRepository.saveUser(user)
+        await sync_to_async(user.save)()
         return JsonResponse({'success': True, 'message': 'User details updated successfully'},status=status.HTTP_200_OK)
     except Exception as e:
         print(traceback.format_exc())
@@ -187,12 +219,6 @@ async def getUserChannelProfile(request, username):
         if not user:
             return JsonResponse({'success': False, 'error': 'User not found'}, status=404)
         
-        page = int(request.GET.get('page', 1))
-        limit = int(request.GET.get('limit', 10))
-        offset = (page - 1) * limit
-
-        userChannelDetails = await VideoRepository.fetch_user_videos(user, offset, limit)
-        
         user = {
                 'id':user.id,
                 'username':user.username,
@@ -201,23 +227,57 @@ async def getUserChannelProfile(request, username):
                 'coverImage':user.coverImage if user.coverImage else None,
                 'subscribers_count': user.subscribers_count,
             }
-        data = [
-            {
-            "videos":{
-                "id": video.id,
-            "title": video.title,
-            "description": video.description,
-            "url": video.video_file if video.video_file else None,
-            "thumbnail": video.thumbnail if video.thumbnail else None,
-            "duration": video.duration,
-            "views": video.views,
-            "createdAt": video.created_at,
-            }
-        } for video in userChannelDetails
-        ] if userChannelDetails else []
 
-        data = {'user':user, 'videos':data}
-        return JsonResponse({'success': True, 'data': data}, status=status.HTTP_200_OK)
+        return JsonResponse({'success': True, 'data': user}, status=status.HTTP_200_OK)
     except Exception as e:
         print(traceback.format_exc())
         return JsonResponse({'success': False, 'error': 'Something went wrong : {}'.format(str(e))}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+async def refreshAccessToken(request):
+    try:
+        incomingRefreshToken = request.COOKIES.get('refreshToken') or request.headers.get('Authorization')
+
+        if not incomingRefreshToken:
+            return JsonResponse({'success': False, 'error': 'Refresh token is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if incomingRefreshToken.startswith('Bearer '):
+            incomingRefreshToken = incomingRefreshToken.split(' ')[1]
+
+        decoded = await verify_token(incomingRefreshToken)
+        
+        if not decoded:
+            return JsonResponse({'success': False, 'error': 'Invalid refresh token'}, status=status.HTTP_401_UNAUTHORIZED)
+        
+        user = await UserRepository.getUserById(decoded.get('userId'))
+        if not user:
+            return JsonResponse({'success': False, 'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+    
+        accessToken , refreshToken = await generateAccessAndRefreshToken(user)
+
+        response = JsonResponse(
+            {
+                'success': True, 
+                'message': 'Access token refreshed successfully',
+                'accessToken': accessToken,
+                'refreshToken':refreshToken
+                }, 
+            status=status.HTTP_200_OK)
+        response.set_cookie(
+            key='accessToken',
+            value=accessToken,
+            httponly=True,
+            secure=True,
+            )
+        response.set_cookie(
+            key='refreshToken',
+            value=refreshToken,
+            httponly=True,
+            secure=True,
+        )
+        return response
+    except:
+        traceback.print_exc()
+        return JsonResponse({'success': False, 'error': 'Something went wrong'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+

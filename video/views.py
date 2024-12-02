@@ -39,7 +39,6 @@ async def get_all_videos(request):
             order_by = f"{order_prefix}{sort_by}"
             
             videos = await VideoRepository.get_paginated_videos(filters, order_by, offset, limit)
-
             if not videos:
                 return JsonResponse({'success': False, 'message': 'No videos found'}, status=404)
             
@@ -52,7 +51,7 @@ async def get_all_videos(request):
                     "id": video.owner.id if video.owner else None,
                     "fullname": video.owner.fullname if video.owner else None,
                     "username": video.owner.username if video.owner else None,
-                    # "avatar": video.owner.avatar if video.owner else None,
+                    "avatar": video.owner.avatar if video.owner.avatar else None,
                 })()
                 data.append({
                 "id": video.id,
@@ -61,7 +60,7 @@ async def get_all_videos(request):
                 "url": video.video_file,
                 "views": video.views,
                 "duration": video.duration,
-                "created_at": video.created_at,
+                "createdAt": video.created_at,
                 "owner": owner_data
                 })
             
@@ -88,9 +87,9 @@ async def get_all_videos(request):
 @require_GET
 async def get_user_videos(request,userId):
    
-    page = request.GET.get('page',1)
-    limit = request.GET.get('limit',10)
-    offset = (page-1) * limit
+    page = int(request.GET.get('page', 1))
+    limit = int(request.GET.get('limit', 10))
+    offset = (page - 1) * limit
     
     if not userId:
         return JsonResponse({'success': False, 'message': 'please give user id'}, status=400)
@@ -100,12 +99,11 @@ async def get_user_videos(request,userId):
         if not user:
             return JsonResponse({'success': False, 'message': 'could not find the user'}, status=404)
         
-        videos = await VideoRepository.fetch_user_videos(user)
+        videos = await VideoRepository.fetch_user_videos(user,offset,limit)
         
         # serialize the data 
-        data = []
-        for video in videos:
-            data.append({
+        video_data = [
+            {
                 "id": video.id,
                 "title": video.title,
                 "description": video.description,
@@ -114,15 +112,21 @@ async def get_user_videos(request,userId):
                 "duration": video.duration,
                 "views": video.views,
                 "createdAt": video.created_at,
-                'owner':{
-                    'id':user.id,
-                    'username':user.username,
+                "updatedAt": video.updated_at,
+                "owner": {
+                    "id": video.owner.id,
+                    "fullname": video.owner.fullname,
+                    "username": video.owner.username,
+                    "avatar": video.owner.avatar if video.owner.avatar else None,
                 }
-            })
+            }
+            for video in videos
+        ] if videos else []
+
 
         return JsonResponse({
             "success": True,
-            "data": data,
+            'data':video_data,
             "page": page,
             "limit": limit,
             "message": "Videos fetched successfully."
@@ -216,12 +220,17 @@ async def get_video_details(request, videoId):
         "thumbnail": video_details.get('thumbnail') if video_details.get('thumbnail') else None,
         "likes": video_details.get('like_count'),
         "is_liked": video_details.get('is_liked'),
+        'is_subscribed':video_details.get('is_subscribed'),
+        'subscribers':video_details.get('subscribers_count'),
         "duration": video_details.get('duration'),
         "views": video_details.get('views'),
         "createdAt": video_details.get('created_at'),
         'owner': {
             'id': video_details.get('owner__id'),
             'username': video_details.get('owner__username'),
+            'fullname': video_details.get('owner__fullname'),
+            'avatar': video_details.get('owner__avatar') if video_details.get('owner__avatar') else None,
+            'createdAt': video_details.get('owner__created_at'),
             }
         }
 
@@ -304,11 +313,6 @@ async def update_video_details(request,videoId):
 @csrf_exempt
 @verify_jwt
 async def delete_video(request, videoId):
-    if request.method != 'DELETE':
-         return JsonResponse({
-            'success': False,
-            'message': 'Only DELETE method is allowed'
-        }, status=status.HTTP_405_METHOD_NOT_ALLOWED)
     try:
         
         if not videoId:
@@ -349,12 +353,6 @@ async def delete_video(request, videoId):
 @verify_jwt
 async def toggle_publish_status(request, videoId):
     try:
-        if request.method != 'PATCH':
-            return JsonResponse({
-                'success': False,
-                'message': 'Method not allowed'
-            }, status=status.HTTP_405_METHOD_NOT_ALLOWED)
-
         if not videoId:
             return JsonResponse({
                 'success': False,

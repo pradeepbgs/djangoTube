@@ -51,10 +51,12 @@ class PlaylistRepository:
     
     @staticmethod
     @sync_to_async
-    def getPlaylistVideos(playlist,offset,limit):
+    def getPlaylistVideos(id,offset,limit):
         try:
             videos = (
-                playlist.videos.all()
+                PlaylistModel
+                .objects.get(id=id)
+                .videos.all()
                 .select_related('owner')
                 .order_by('created_at')[offset:offset+limit]
                 )
@@ -75,9 +77,9 @@ class PlaylistRepository:
     
     @staticmethod
     @sync_to_async
-    def getUserPlaylist(id,user):
+    def getUserPlaylist(user):
         try:
-            playlist = PlaylistModel.objects.get(id=id,owner=user)
+            playlist = PlaylistModel.objects.filter(owner=user).select_related('owner').order_by('created_at')
             return playlist if playlist else None
         except:
             print(traceback.format_exc())

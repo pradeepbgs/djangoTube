@@ -10,9 +10,9 @@ JWT_ALGORITHM = 'HS256'
 JWT_EXP_DELTA_SECONDS = 86400
 
 @sync_to_async
-def generate_token(data):
+def generateRefreshToken(data):
     payload = {
-        'user_id': data.id,
+        'id': data.id,
         'username': data.username,
         'email': data.email,
         'exp': datetime.utcnow() + timedelta(seconds=JWT_EXP_DELTA_SECONDS),
@@ -20,6 +20,15 @@ def generate_token(data):
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
+    
+@sync_to_async
+def generateAccessToken(data):
+    payload = {
+        'id': data.id,
+        'exp': datetime.utcnow() + timedelta(seconds=JWT_EXP_DELTA_SECONDS),
+        'iat': datetime.utcnow(),
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 @sync_to_async
 def verify_token(token):
