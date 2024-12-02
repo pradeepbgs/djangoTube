@@ -61,7 +61,7 @@ class VideoRepository:
                       .filter(filters)
                       .select_related('owner')
                       .order_by(order_by)[offset:offset+limit])
-            return videos            
+            return videos if videos else None           
         except:
             return None
            

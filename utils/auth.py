@@ -10,12 +10,14 @@ from asgiref.sync import sync_to_async
 def verify_jwt(view_func):
     @wraps(view_func)
     async def _wrapped_view(request, *args, **kwargs):
-        token = request.COOKIES.get('token')
+        token = request.COOKIES.get('accessToken') or request.headers.get('Authorization')
+        if token and token.startswith('Bearer '):
+            token = token.split(' ')[1]
         if token:
             try:
-                payload = await verify_token(token)  
+                payload = await verify_token(token)
                 if payload:
-                    user_id = payload.get('user_id')
+                    user_id = payload.get('id')
 
                 if user_id:
                     user = await sync_to_async(User.objects.filter(id=user_id).first)()

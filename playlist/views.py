@@ -6,6 +6,7 @@ from rest_framework import status
 from .repository import PlaylistRepository
 import traceback
 from asgiref.sync import sync_to_async
+from user.repository import UserRepository
 # Create your views here.
 
 @require_POST
@@ -41,58 +42,78 @@ async def createPlaylist(request):
 
 @require_GET
 @verify_jwt
-async def getPlaylist(request, id):
+async def getUserPlayList(request, id):
     try:
-        page = int(request.GET.get('page', 1))
-        limit = int(request.GET.get('limit', 10))
-        offset = (page - 1) * limit
-
         if not id:
-            return JsonResponse({'success': False, 'message': 'Please provide playlist id'}, status=status.HTTP_400_BAD_REQUEST)
-
-        playlist = await PlaylistRepository.getPlaylistById(id)
-        if not playlist:
+            return JsonResponse({'success': False, 'message': 'Please provide userid id'}, status=status.HTTP_400_BAD_REQUEST)
+# 
+        user = await UserRepository.getUserById(id)
+        if not user:
+            return JsonResponse({'success': False, 'message': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        playlists = await PlaylistRepository.getUserPlaylist(user)
+        if not playlists:
             return JsonResponse({'success': False, 'message': 'Playlist not found'}, status=status.HTTP_404_NOT_FOUND)
 
-        videos = await PlaylistRepository.getPlaylistVideos(playlist, offset, limit)
-        if videos is None:
-            return JsonResponse({'success': False, 'message': 'No videos'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-        playlistOwner = await sync_to_async(lambda: playlist.owner)()
-
-        videos_data = []
-        for video in videos:
-            owner = await sync_to_async(lambda: video.owner)()
-            videos_data.append({
-                "id": video.id,
-                "title": video.title,
-                "description": video.description,
-                "thumbnail": video.thumbnail,
-                "videoFile": video.video_file,
-                "owner": {
-                    "username": owner.username,
-                    "avatar": owner.avatar if owner.avatar else None
-                },
-                "createdAt": video.created_at
-            })
-
-        playlistdata = {
-            "id": playlist.id,
-            "name": playlist.name,
-            "description": playlist.description,
-            "owner": {
-                "username": playlistOwner.username,
-                "profilePicture": playlistOwner.avatar if playlistOwner.avatar else None
-            },
-            "videos": videos_data
-        }
-
+        # playlistOwner = await sync_to_async(lambda: playlists.owner)()
+        playlistdata = [
+            {
+                'id': playlist.id,
+                'name': playlist.name,
+                'description': playlist.description,
+                'createdAt': playlist.created_at,
+                'owner': {
+                    'id': playlist.owner.id,
+                    'username': playlist.owner.username,
+                    'avatar': playlist.owner.avatar,
+                } if playlist.owner else None
+            } for playlist in playlists
+        ] if playlists else []
+        
         return JsonResponse({'success': True, 'message': 'Playlist fetched successfully', 'data': playlistdata}, status=status.HTTP_200_OK)
 
     except Exception:
         print(traceback.format_exc())
         return JsonResponse({'success': False, 'message': 'Failed to fetch playlist'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+@require_GET
+@verify_jwt
+async def getPlayListById(request,id):
+    try:
+        if not id:
+            return JsonResponse({'success':False, 'message':'Please provide playlist id'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        page = int(request.GET.get('page', 1))
+        limit = int(request.GET.get('limit', 10))
+        offset = (page - 1) * limit
+
+        videos = await PlaylistRepository.getPlaylistVideos(id,offset,limit)
+        if not videos:
+            return JsonResponse({'success':False, 'message':'No videos found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        video_data = [
+            {
+                'id': video.id,
+                'title': video.title,
+                'description': video.description,
+                'thumbnail': video.thumbnail,
+                'videoFile': video.video_file,
+                'duration': video.duration,
+                'owner': {
+                    'id': video.owner.id,
+                    'username': video.owner.username,
+                    'avatar': video.owner.avatar
+                },
+                'createdAt': video.created_at
+            }
+            for video in videos
+        ] if videos else []
+
+        return JsonResponse({'success':True, 'message':'Playlists videos fetched successfully', 'data':video_data}, status=status.HTTP_200_OK)
+
+    except:
+        traceback.print_exc()
+        return JsonResponse({'success':False, 'message':'Failed to fetch playlists videos'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @require_POST
 @csrf_exempt
@@ -180,6 +201,7 @@ async def updatePlaylist(request, playlistId):
         return JsonResponse({'success':False, 'message':'Failed to update playlist'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @require_http_methods(['DELETE'])
+@csrf_exempt
 @verify_jwt
 async def deletePlaylist(request, playlistId):
     if request.method != 'DELETE':
