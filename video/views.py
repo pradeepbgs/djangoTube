@@ -40,7 +40,7 @@ async def get_all_videos(request):
             
             videos = await VideoRepository.get_paginated_videos(filters, order_by, offset, limit)
             if not videos:
-                return JsonResponse({'success': False, 'message': 'No videos found'}, status=404)
+                return JsonResponse({'success': True, 'message': 'No videos found','data':[]}, status=200)
             
             total_count = await VideoRepository.getVideosTotalCound(filters)
             total_pages = (total_count + limit - 1) // limit

@@ -87,6 +87,17 @@ class PlaylistRepository:
     
     @staticmethod
     @sync_to_async
+    def getUserPlaylistById(id, user):
+        try:
+            playlist = PlaylistModel.objects.get(id=id, owner=user)
+            return playlist if playlist else None
+        except:
+            traceback.print_exc()
+            return None
+        
+        
+    @staticmethod
+    @sync_to_async
     def deletePlaylist(playlistId,user):
         try:
             playlist = PlaylistModel.objects.get(id=playlistId, owner=user)

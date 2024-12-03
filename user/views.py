@@ -225,7 +225,8 @@ async def getUserChannelProfile(request, username):
                 'fullname':user.fullname,
                 'avatar':user.avatar if user.avatar else None,
                 'coverImage':user.coverImage if user.coverImage else None,
-                'subscribers_count': user.subscribers_count,
+                'subscribers': user.subscribers_count,
+                'createdAt':user.created_at,
             }
 
         return JsonResponse({'success': True, 'data': user}, status=status.HTTP_200_OK)

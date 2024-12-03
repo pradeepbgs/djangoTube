@@ -129,7 +129,7 @@ async def addVideoToPlaylist(request, playlistId,videoId):
         if not videoId:
             return JsonResponse({'success':False, 'message':'Video id is required'}, status=status.HTTP_400_BAD_REQUEST)
 
-        playlist = await PlaylistRepository.getUserPlaylist(playlistId,request.user)
+        playlist = await PlaylistRepository.getUserPlaylistById(playlistId,request.user)
         if not playlist:
             return JsonResponse({'success':False, 'message':'Playlist not found'}, status=status.HTTP_404_NOT_FOUND)
 
@@ -156,7 +156,7 @@ async def removeVideoFromPlaylist(request, playlistId, videoId):
         if not videoId:
             return JsonResponse({'success':False, 'message':'Video id is required'}, status=status.HTTP_400_BAD_REQUEST)
 
-        playlist = await PlaylistRepository.getUserPlaylist(playlistId, request.user)
+        playlist = await PlaylistRepository.getUserPlaylistById(playlistId, request.user)
         if not playlist:
             return JsonResponse({'success':False, 'message':'Playlist not found'}, status=status.HTTP_404_NOT_FOUND)
 
