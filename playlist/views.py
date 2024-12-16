@@ -7,6 +7,7 @@ from .repository import PlaylistRepository
 import traceback
 from asgiref.sync import sync_to_async
 from user.repository import UserRepository
+import json
 # Create your views here.
 
 @require_POST
@@ -17,8 +18,9 @@ async def createPlaylist(request):
         return JsonResponse({'success':False,'message':'Unauthorized'},status=status.HTTP_401_UNAUTHORIZED)
     
     try:
-        playlistName = request.POST.get('playlistName', None)
-        if not playlistName:
+        data = json.loads(request.body)
+        playlistName = data.get('playlistName', None)
+        if not playlistName or not len(playlistName):
             return JsonResponse({'success':False, 'message':'Playlist name is required'}, status=status.HTTP_400_BAD_REQUEST)
         
         playlistDescription = request.POST.get('playlistDescription',f"create by {request.user.username}")
@@ -53,7 +55,7 @@ async def getUserPlayList(request, id):
         
         playlists = await PlaylistRepository.getUserPlaylist(user)
         if not playlists:
-            return JsonResponse({'success': False, 'message': 'Playlist not found'}, status=status.HTTP_404_NOT_FOUND)
+            return JsonResponse({'success': True, 'message': 'Playlist not found','data':[]}, status=status.HTTP_404_NOT_FOUND)
 
         # playlistOwner = await sync_to_async(lambda: playlists.owner)()
         playlistdata = [
@@ -89,7 +91,7 @@ async def getPlayListById(request,id):
 
         videos = await PlaylistRepository.getPlaylistVideos(id,offset,limit)
         if not videos:
-            return JsonResponse({'success':False, 'message':'No videos found'}, status=status.HTTP_404_NOT_FOUND)
+            return JsonResponse({'success':True, 'message':'No videos found','data':[]}, status=status.HTTP_200_OK)
         
         video_data = [
             {

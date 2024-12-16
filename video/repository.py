@@ -80,29 +80,31 @@ class VideoRepository:
     @staticmethod
     @sync_to_async
     def fetch_video_details(video, user):
-        return (VideoModel.objects.filter(id=video.id).annotate(
-            like_count=Count('likes', filter=Q(likes__video=video)),
-            subscribers_count=Count('owner__subscribers', filter=Q(owner__subscribers__channel=video.owner)),
-            is_liked=Case(
-                When(likes__liked_by=user, then=Value(True)),
-                default=Value(False),
-                output_field=BooleanField(),
-            ) if user else Value(False, output_field=BooleanField()),
-            is_subscribed=Case(
-                When(owner__subscriptions__subscriber=user, then=Value(True)),
-                default=Value(False),
-                output_field=BooleanField(),
-            ) if user else Value(False, output_field=BooleanField())
-        ).values(
-            'id', 'title', 'description', 'thumbnail', 'video_file', 'views', 'isPublished', 'duration',
-            'created_at', 'updated_at',
-            'like_count', 'subscribers_count', 'is_liked', 'is_subscribed',
-            'owner__id',
-            'owner__fullname',
-            'owner__username',
-            'owner__avatar',
-        ).first()
-        )
+        videoDetails = (VideoModel.objects.filter(id=video.id).annotate(
+        like_count=Count('likes'),
+        subscribers_count=Count('owner__subscribers'),
+        is_liked=Case(
+            When(likes__liked_by=user, then=Value(True)),
+            default=Value(False),
+            output_field=BooleanField(),
+        ) if user else Value(False, output_field=BooleanField()),
+        is_subscribed=Case(
+            When(owner__subscribers__subscriber=user, then=Value(True)),
+            default=Value(False),
+            output_field=BooleanField(),
+        ) if user else Value(False, output_field=BooleanField())
+    ).values(
+        'id', 'title', 'description', 'thumbnail', 'video_file', 'views', 'isPublished', 'duration',
+        'created_at', 'updated_at',
+        'like_count', 'subscribers_count', 'is_liked', 'is_subscribed',
+        'owner__id',
+        'owner__fullname',
+        'owner__username',
+        'owner__avatar',
+    ).first()
+    )
+        return videoDetails if videoDetails else None
+
 
     @staticmethod
     @sync_to_async

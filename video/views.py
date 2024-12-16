@@ -63,7 +63,7 @@ async def get_all_videos(request):
                 "createdAt": video.created_at,
                 "owner": owner_data
                 })
-            
+
             return JsonResponse({
                     "success": True,
                     "message": "Videos fetched successfully.",
@@ -219,8 +219,8 @@ async def get_video_details(request, videoId):
         "url": video_details.get('video_file') if video_details.get('video_file') else None,
         "thumbnail": video_details.get('thumbnail') if video_details.get('thumbnail') else None,
         "likes": video_details.get('like_count'),
-        "is_liked": video_details.get('is_liked'),
-        'is_subscribed':video_details.get('is_subscribed'),
+        "isLiked": video_details.get('is_liked'),
+        'isSubscribed':video_details.get('is_subscribed'),
         'subscribers':video_details.get('subscribers_count'),
         "duration": video_details.get('duration'),
         "views": video_details.get('views'),
@@ -233,7 +233,6 @@ async def get_video_details(request, videoId):
             'createdAt': video_details.get('owner__created_at'),
             }
         }
-
         return JsonResponse({
             "success": True,
             "data": data,
