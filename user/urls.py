@@ -8,5 +8,5 @@ urlpatterns = [
     path('user/', views.get_user, name='get user'),
     path('update/', views.update_user),
     path('c/<username>/', views.getUserChannelProfile),
-    path('refreshAccessToken',views.refreshAccessToken)
+    path('refresh-token/',views.refreshAccessToken)
 ]

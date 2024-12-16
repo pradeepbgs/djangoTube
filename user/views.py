@@ -111,12 +111,15 @@ async def login_user(request):
                 value=accesToken, 
                 httponly=True,
                 secure=True,
+                max_age=7200,
+                samesite='None'
                 )
             response.set_cookie(
                 key='refreshToken',
                 value=refreshToken,
                 httponly=True,
                 secure=True,
+                max_age=604800,
                 samesite='None'
             )
             return response
@@ -126,11 +129,7 @@ async def login_user(request):
 
 @require_POST
 @csrf_exempt
-@verify_jwt
 async def logout(request):
-
-    if not request.user:
-        return JsonResponse({'success': False, 'error': 'Unauthenticated'}, status=status.HTTP_401_UNAUTHORIZED)
     try:
         response = JsonResponse({'success': True, 'message': 'Logout successful'})
         response.delete_cookie('token')
@@ -211,30 +210,34 @@ async def update_user(request):
 
 
 @require_GET
+@verify_jwt
 async def getUserChannelProfile(request, username):
     try:
         if not username:
             return JsonResponse({'success': False, 'error': 'Username is required'}, status=status.HTTP_400_BAD_REQUEST)
-        user = await UserRepository.getUserByUserName(username)
+        loggedInUser = await UserRepository.getUserByUsername(request.user.username) if request.user else None
+        
+        user = await UserRepository.getUser(username,loggedInUser)
         if not user:
             return JsonResponse({'success': False, 'error': 'User not found'}, status=404)
         
-        user = {
-                'id':user.id,
-                'username':user.username,
-                'fullname':user.fullname,
-                'avatar':user.avatar if user.avatar else None,
-                'coverImage':user.coverImage if user.coverImage else None,
-                'subscribers': user.subscribers_count,
-                'createdAt':user.created_at,
-            }
-
-        return JsonResponse({'success': True, 'data': user}, status=status.HTTP_200_OK)
+        user_data = {
+            'id': user.id,
+            'username': user.username,
+            'fullname': user.fullname,
+            'avatar': user.avatar if user.avatar else None,
+            'coverImage': user.coverImage if user.coverImage else None,
+            'subscribers': user.subscribers_count,
+            'isSubscribed': user.is_subscribed,
+            'createdAt': user.created_at
+        }
+        
+        return JsonResponse({'success': True, 'data': user_data}, status=status.HTTP_200_OK)
     except Exception as e:
         print(traceback.format_exc())
         return JsonResponse({'success': False, 'error': 'Something went wrong : {}'.format(str(e))}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-
+@require_GET
 async def refreshAccessToken(request):
     try:
         incomingRefreshToken = request.COOKIES.get('refreshToken') or request.headers.get('Authorization')
@@ -245,12 +248,11 @@ async def refreshAccessToken(request):
         if incomingRefreshToken.startswith('Bearer '):
             incomingRefreshToken = incomingRefreshToken.split(' ')[1]
 
+
         decoded = await verify_token(incomingRefreshToken)
-        
         if not decoded:
             return JsonResponse({'success': False, 'error': 'Invalid refresh token'}, status=status.HTTP_401_UNAUTHORIZED)
-        
-        user = await UserRepository.getUserById(decoded.get('userId'))
+        user = await UserRepository.getUserById(decoded.get('id'))
         if not user:
             return JsonResponse({'success': False, 'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
     
@@ -265,20 +267,22 @@ async def refreshAccessToken(request):
                 }, 
             status=status.HTTP_200_OK)
         response.set_cookie(
-            key='accessToken',
-            value=accessToken,
-            httponly=True,
-            secure=True,
-            )
+                key='accessToken', 
+                value=accessToken, 
+                httponly=True,
+                secure=True,
+                max_age=7200,
+                samesite='None'
+                )
         response.set_cookie(
-            key='refreshToken',
-            value=refreshToken,
-            httponly=True,
-            secure=True,
-        )
+                key='refreshToken',
+                value=refreshToken,
+                httponly=True,
+                secure=True,
+                max_age=604800,
+                samesite='None'
+            )
         return response
     except:
         traceback.print_exc()
         return JsonResponse({'success': False, 'error': 'Something went wrong'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
-

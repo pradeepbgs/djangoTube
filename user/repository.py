@@ -2,8 +2,10 @@ from asgiref.sync import sync_to_async
 from django.contrib.auth import get_user_model
 import traceback
 from django.contrib.auth.models import User 
-from django.db.models import Count,Q,F
-
+from django.db.models import Count,Q,F,Case,Value,Exists,BooleanField
+from django.db import models
+from django.db.models import OuterRef
+from subscription.models import SubscriptionModel
 User = get_user_model()
 
 class UserRepository:
@@ -12,24 +14,46 @@ class UserRepository:
     @sync_to_async
     def getUserById(id):
         try:
-            return User.objects.get(id=id)
+            user = User.objects.filter(id=id).first()
+            return user if user else None
         except User.DoesNotExist:
             print(traceback.format_exc())
             return None
-        
+
     @staticmethod
     @sync_to_async
-    def getUserByUserName(username):
+    def getUserByUsername(username):
         try:
-            user =  (
-                User.objects
-                .filter(username=username)
-                .annotate(
-                    subscribers_count = Count('subscribers', filter=Q(subscribers__channel=F('id')))
-                )
-                .first()
-                )
+            user =  User.objects.filter(username=username).first()
             return user if user else None
+        except User.DoesNotExist:
+            print(traceback.format_exc())
+            return None
+
+    @staticmethod
+    @sync_to_async
+    def getUser(username, LoggedInUser):
+        try:
+            user = (
+            User.objects
+            .filter(username=username)
+            .annotate(
+                subscribers_count=Count(
+                    'subscribers', filter=Q(subscribers__channel=F('id'))
+                ),
+                is_subscribed=Value(False, output_field=BooleanField()) 
+            )
+            .first()
+        )
+
+            if user:
+                is_subscribed = SubscriptionModel.objects.filter(
+                channel=user, subscriber=LoggedInUser
+            ).exists()
+                user.is_subscribed = is_subscribed 
+
+            return user if user else None
+
         except User.DoesNotExist:
             print(traceback.format_exc())
             return None
