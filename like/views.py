@@ -14,7 +14,7 @@ from asgiref.sync import sync_to_async
 @require_POST
 @csrf_exempt
 @verify_jwt
-async def toggle_video_like(request,videoId):
+async def toggle_video_like(request,videoId)-> JsonResponse:
     if not request.user:
         return JsonResponse({'success':False,'message':'unauthorized'},status=401)
     
@@ -40,7 +40,7 @@ async def toggle_video_like(request,videoId):
 #toggle comment like
 @require_POST
 @verify_jwt
-async def toggle_comment_like(request, commentId):
+async def toggle_comment_like(request, commentId)-> JsonResponse:
     if not request.user:
         return JsonResponse({'success':False, 'message':'unauthorized'}, status=401)
 
@@ -66,7 +66,7 @@ async def toggle_comment_like(request, commentId):
 #get liked videos
 @require_GET
 @verify_jwt
-async def get_liked_videos(request):
+async def get_liked_videos(request)-> JsonResponse:
     if not request.user:
         return JsonResponse({'success':False, 'message':'unauthenticated'}, status=401)
 

@@ -15,7 +15,7 @@ from .repository import VideoRepository
 
 # get all video with search/filter 
 @require_GET
-async def get_all_videos(request):
+async def get_all_videos(request)-> JsonResponse:
         page = int(request.GET.get('page',1))
         limit = int(request.GET.get('limit', 10))
         offset = (page - 1) * limit
@@ -85,7 +85,7 @@ async def get_all_videos(request):
 
 # get user videos by pagination
 @require_GET
-async def get_user_videos(request,userId):
+async def get_user_videos(request,userId)-> JsonResponse:
    
     page = int(request.GET.get('page', 1))
     limit = int(request.GET.get('limit', 10))
@@ -144,7 +144,7 @@ async def get_user_videos(request,userId):
 @require_POST
 @csrf_exempt
 @verify_jwt
-async def upload_video(request):
+async def upload_video(request)-> JsonResponse:
     if not request.user:
         return JsonResponse({
             "success":False,
@@ -201,7 +201,7 @@ async def upload_video(request):
 @require_GET
 @csrf_exempt
 @verify_jwt
-async def get_video_details(request, videoId):
+async def get_video_details(request, videoId)-> JsonResponse:
     user = request.user 
     try:
         video = await VideoRepository.getVideoByVideoId(videoId)
@@ -242,10 +242,11 @@ async def get_video_details(request, videoId):
     except VideoModel.DoesNotExist:
         return JsonResponse({'error': 'Video not found'}, status=404)
 
+# 
 @require_POST
 @csrf_exempt
 @verify_jwt
-async def update_video_details(request,videoId):
+async def update_video_details(request,videoId)-> JsonResponse:
     if not request.user:
         return JsonResponse({
       'success':False,
@@ -308,10 +309,11 @@ async def update_video_details(request,videoId):
             "error": str(e)
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+# 
 @require_http_methods(["DELETE"])
 @csrf_exempt
 @verify_jwt
-async def delete_video(request, videoId):
+async def delete_video(request, videoId)-> JsonResponse:
     try:
         
         if not videoId:
@@ -347,10 +349,12 @@ async def delete_video(request, videoId):
             'error': str(e)
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
+# 
 @require_http_methods(["PATCH"])
 @csrf_exempt
 @verify_jwt
-async def toggle_publish_status(request, videoId):
+async def toggle_publish_status(request, videoId)-> JsonResponse:
     try:
         if not videoId:
             return JsonResponse({

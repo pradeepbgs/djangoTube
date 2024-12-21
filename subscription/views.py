@@ -1,9 +1,8 @@
 from .repository import SubscriptionRepository
 from utils.auth import verify_jwt
-from django.views.decorators.http import require_POST,require_GET,require_http_methods
+from django.views.decorators.http import require_POST,require_GET
 from django.views.decorators.csrf import csrf_exempt
 import traceback
-from asgiref.sync import sync_to_async
 from django.http import JsonResponse
 from user.repository import UserRepository
 
@@ -11,7 +10,7 @@ from user.repository import UserRepository
 @require_POST
 @csrf_exempt
 @verify_jwt
-async def toggle_subscription(request,channelId):
+async def toggle_subscription(request,channelId)-> JsonResponse:
     if not request.user:
         return JsonResponse({'error': 'Unauthorized'}, status=401)
     
@@ -42,7 +41,7 @@ async def toggle_subscription(request,channelId):
 # get subscribed channels
 @require_GET
 @verify_jwt
-async def get_subscribed_channels(request):
+async def get_subscribed_channels(request)-> JsonResponse:
     if not request.user:
         return JsonResponse({'success':False, 'message':'unauthorized'}, status=401)
 
