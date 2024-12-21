@@ -1,5 +1,5 @@
 from django.http import JsonResponse
-from django.views.decorators.http import require_POST,require_GET,require_http_methods
+from django.views.decorators.http import require_POST,require_GET
 from rest_framework import status
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth import authenticate
@@ -8,10 +8,8 @@ from utils.cloudinary import upload_image , delete_file_from_cloudinary
 from utils.jwt import generateAccessToken,generateRefreshToken,verify_token
 import traceback
 from .repository import UserRepository
-from video.repository import VideoRepository
 from utils.auth import verify_jwt
 import traceback
-import json
 from urllib.parse import unquote
 
 # Create your views here.
@@ -27,7 +25,7 @@ async def generateAccessAndRefreshToken(user):
 
 @require_POST
 @csrf_exempt
-async def register_user(request):
+async def register_user(request) -> JsonResponse:
         try:
             email = request.POST.get('email')
             username = request.POST.get('username')
@@ -77,7 +75,7 @@ async def register_user(request):
 # login 
 @require_POST
 @csrf_exempt
-async def login_user(request):
+async def login_user(request)-> JsonResponse:
         
         username = request.POST.get("username")
         password = request.POST.get("password")
@@ -129,7 +127,7 @@ async def login_user(request):
 
 @require_POST
 @csrf_exempt
-async def logout(request):
+async def logout(request)-> JsonResponse:
     try:
         response = JsonResponse({'success': True, 'message': 'Logout successful'})
         response.delete_cookie('token')
@@ -141,7 +139,7 @@ async def logout(request):
 
 @require_GET
 @verify_jwt
-async def get_user(request):
+async def get_user(request)-> JsonResponse:
     try:
         if not request.user:
             return JsonResponse({'success': False, 'error': 'Unauthenticated'}, status=404)
@@ -166,7 +164,7 @@ async def get_user(request):
 @require_POST
 @csrf_exempt
 @verify_jwt
-async def update_user(request):
+async def update_user(request)-> JsonResponse:
     try:
         if not request.user:
             return JsonResponse({'success': False, 'error': 'Unauthenticated'}, status=404)
@@ -211,7 +209,7 @@ async def update_user(request):
 
 @require_GET
 @verify_jwt
-async def getUserChannelProfile(request, username):
+async def getUserChannelProfile(request, username)-> JsonResponse:
     try:
         if not username:
             return JsonResponse({'success': False, 'error': 'Username is required'}, status=status.HTTP_400_BAD_REQUEST)
@@ -238,7 +236,7 @@ async def getUserChannelProfile(request, username):
         return JsonResponse({'success': False, 'error': 'Something went wrong : {}'.format(str(e))}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @require_GET
-async def refreshAccessToken(request):
+async def refreshAccessToken(request)-> JsonResponse:
     try:
         incomingRefreshToken = request.COOKIES.get('refreshToken') or request.headers.get('Authorization')
 

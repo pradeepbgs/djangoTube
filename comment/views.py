@@ -14,7 +14,7 @@ from django.views.decorators.http import require_POST,require_GET,require_http_m
 @require_POST
 @csrf_exempt
 @verify_jwt
-async def add_comment(request,videoId):
+async def add_comment(request,videoId) -> JsonResponse:
     if not request.user:
         return JsonResponse({"success":False,'message':'unauthorized user'},status=status.HTTP_401_UNAUTHORIZED)
 
@@ -82,7 +82,7 @@ async def get_video_comments(request,videoId) -> JsonResponse :
 @require_POST
 @csrf_exempt
 @verify_jwt
-async def update_comment(request , commentId):
+async def update_comment(request , commentId) -> JsonResponse:
     if not request.user:
         return JsonResponse({"success":False, 'message':'unauthorized user'}, status=status.HTTP_401_UNAUTHORIZED)
     
@@ -115,7 +115,7 @@ async def update_comment(request , commentId):
 @require_http_methods(['DELETE'])
 @csrf_exempt
 @verify_jwt
-async def delete_comment(request,commentId):
+async def delete_comment(request,commentId)-> JsonResponse:
     if not request.user:
         return JsonResponse({"success":False, 'message':'unauthorized user'}, status=status.HTTP_401_UNAUTHORIZED)
     

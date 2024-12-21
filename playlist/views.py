@@ -13,7 +13,7 @@ import json
 @require_POST
 @csrf_exempt
 @verify_jwt
-async def createPlaylist(request):
+async def createPlaylist(request)-> JsonResponse:
     if not request.user:
         return JsonResponse({'success':False,'message':'Unauthorized'},status=status.HTTP_401_UNAUTHORIZED)
     
@@ -42,9 +42,10 @@ async def createPlaylist(request):
         traceback.print_exc()
         return JsonResponse({'success':False, 'message':'Failed to create playlist'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+# 
 @require_GET
 @verify_jwt
-async def getUserPlayList(request, id):
+async def getUserPlayList(request, id)-> JsonResponse:
     try:
         if not id:
             return JsonResponse({'success': False, 'message': 'Please provide userid id'}, status=status.HTTP_400_BAD_REQUEST)
@@ -78,9 +79,10 @@ async def getUserPlayList(request, id):
         print(traceback.format_exc())
         return JsonResponse({'success': False, 'message': 'Failed to fetch playlist'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+# 
 @require_GET
 @verify_jwt
-async def getPlayListById(request,id):
+async def getPlayListById(request,id)-> JsonResponse:
     try:
         if not id:
             return JsonResponse({'success':False, 'message':'Please provide playlist id'}, status=status.HTTP_400_BAD_REQUEST)
@@ -117,10 +119,11 @@ async def getPlayListById(request,id):
         traceback.print_exc()
         return JsonResponse({'success':False, 'message':'Failed to fetch playlists videos'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+# 
 @require_POST
 @csrf_exempt
 @verify_jwt
-async def addVideoToPlaylist(request, playlistId,videoId):
+async def addVideoToPlaylist(request, playlistId,videoId)-> JsonResponse:
     if not request.user:
         return JsonResponse({'success':False, 'message':'Unauthorized'}, status=status.HTTP_401_UNAUTHORIZED)
 
@@ -144,10 +147,11 @@ async def addVideoToPlaylist(request, playlistId,videoId):
         traceback.print_exc()
         return JsonResponse({'success':False, 'message':'Failed to add video to playlist'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+# 
 @require_http_methods(['DELETE'])
 @csrf_exempt
 @verify_jwt
-async def removeVideoFromPlaylist(request, playlistId, videoId):
+async def removeVideoFromPlaylist(request, playlistId, videoId) -> JsonResponse:
     if not request.user:
         return JsonResponse({'success':False, 'message':'Unauthorized'}, status=status.HTTP_401_UNAUTHORIZED)
 
@@ -171,10 +175,11 @@ async def removeVideoFromPlaylist(request, playlistId, videoId):
         traceback.print_exc()
         return JsonResponse({'success':False, 'message':'Failed to remove video from playlist'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+# 
 require_POST
 @csrf_exempt
 @verify_jwt
-async def updatePlaylist(request, playlistId):
+async def updatePlaylist(request, playlistId)-> JsonResponse:
     if not request.user:
         return JsonResponse({'success':False, 'message':'Unauthorized'}, status=status.HTTP_401_UNAUTHORIZED)
 
@@ -202,10 +207,11 @@ async def updatePlaylist(request, playlistId):
         traceback.print_exc()
         return JsonResponse({'success':False, 'message':'Failed to update playlist'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
 @require_http_methods(['DELETE'])
 @csrf_exempt
 @verify_jwt
-async def deletePlaylist(request, playlistId):
+async def deletePlaylist(request, playlistId)-> JsonResponse:
     if request.method != 'DELETE':
         return JsonResponse({'success':False, 'message': 'Invalid request method'}, status=400)
 
