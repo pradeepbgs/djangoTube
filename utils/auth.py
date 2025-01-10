@@ -1,5 +1,4 @@
 from functools import wraps
-from django.http import JsonResponse
 import jwt
 from utils.jwt import verify_token
 from django.contrib.auth import get_user_model
@@ -11,14 +10,11 @@ def verify_jwt(view_func):
     @wraps(view_func)
     async def _wrapped_view(request, *args, **kwargs):
         token = request.COOKIES.get('accessToken') or request.headers.get('Authorization')
-        
         # Extract Bearer token if present
         if token and token.startswith('Bearer '):
             token = token.split(' ')[1]
-        
         # Default user to None
         request.user = None
-        
         if token:
             try:
                 # Verify token
@@ -35,8 +31,7 @@ def verify_jwt(view_func):
             except jwt.InvalidTokenError:
                 print("Invalid token")
             except Exception as e:
-                print(f"Error verifying token: {e}")
-                
+                print(f"Error verifying token: {e}")         
         # Proceed to the view
         return await view_func(request, *args, **kwargs)
 

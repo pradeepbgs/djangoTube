@@ -18,7 +18,7 @@ This project is built using Django as the backend, where users can create accoun
 
 ## Tech Stack
 
-- **Backend**: Django, Django Rest Framework (DRF)
+- **Backend**: Django
 - **Database**: PostgreSQL (or any preferred database)
 - **Authentication**: JWT-based authentication for user sessions
 

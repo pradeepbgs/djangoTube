@@ -155,12 +155,12 @@ async def upload_video(request)-> JsonResponse:
     files = request.FILES
 
     title = data.get('title')
-    description = data.get('description')
+    description = data.get('description' ,"No Description")
     thumbnail = files.get('thumbnail')
-    video_file = files.get('videoFile')
+    video_file = files.get('video')
 
 
-    if not title or not description or not thumbnail or not video_file:
+    if not title or not thumbnail or not video_file:
         return JsonResponse({'success': False, 'message': 'Please provide all required fields.'}, status=status.HTTP_400_BAD_REQUEST)
 
     try:
