@@ -10,4 +10,7 @@ class CommentModel(models.Model):
     video = models.ForeignKey(VideoModel,on_delete=models.CASCADE, related_name='comments')
     owner = models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.CASCADE, related_name='comments')
     created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)    
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f'comment created by {self.owner}'
